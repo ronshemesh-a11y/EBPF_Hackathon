@@ -1,7 +1,6 @@
 package main
 
-// SchemaVersion of the Verdict output contract (P2 → P3).
-const SchemaVersion = 1
+import "time"
 
 // Bands key on risk_score (probability the command is malicious).
 const (
@@ -32,13 +31,12 @@ type ScoreResult struct {
 }
 
 // Verdict is the P2 → P3 output line (one JSON object per scored command).
+// The JSON tags here are the shared contract with P3 (exectrace types.Verdict)
+// and must stay byte-identical to it. The P1 sensor emits only
+// event_type/executable/argv, so per-process identity fields (pid/comm/…) are
+// intentionally absent — they would always be blank.
 type Verdict struct {
-	SchemaVersion  int      `json:"schema_version"`
-	TS             string   `json:"ts"`
-	PID            uint32   `json:"pid"`
-	PPID           uint32   `json:"ppid"`
-	Comm           string   `json:"comm"`
-	ParentComm     string   `json:"parent_comm"`
+	TS             string   `json:"ts"` // RFC3339, stamped at scoring time
 	Executable     string   `json:"executable"`
 	Command        string   `json:"command"`
 	RiskScore      float64  `json:"risk_score"`
@@ -53,6 +51,7 @@ type Verdict struct {
 // newVerdict assembles an output line from an event, a score result, and the
 // source that produced it. The band is derived from the score so it always
 // agrees with risk_score. Nil slices are normalized to [] for clean JSON.
+// ts is stamped at scoring time since the minimal P1 stream carries none.
 func newVerdict(e ExecEvent, r ScoreResult, source string) Verdict {
 	mitre := r.Mitre
 	if mitre == nil {
@@ -63,12 +62,7 @@ func newVerdict(e ExecEvent, r ScoreResult, source string) Verdict {
 		indicators = []string{}
 	}
 	return Verdict{
-		SchemaVersion:  SchemaVersion,
-		TS:             e.Timestamp,
-		PID:            e.PID,
-		PPID:           e.PPID,
-		Comm:           e.Comm,
-		ParentComm:     e.ParentComm,
+		TS:             time.Now().UTC().Format(time.RFC3339),
 		Executable:     e.Executable,
 		Command:        e.CommandLine(),
 		RiskScore:      r.RiskScore,

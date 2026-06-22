@@ -142,17 +142,21 @@ func (s *Scorer) Score(e types.Event) types.Verdict {
 		ts = time.Time{}
 	}
 
+	indicators := []string{}
+	if best.tactic != "" {
+		indicators = []string{best.tactic}
+	}
 	v := types.Verdict{
-		Pid:     e.Pid,
-		Command: cmd,
-		Score:   best.score,
-		Band:    s.bands.classify(best.score),
-		Verdict: best.verdict,
-		Reason:  best.reason,
-		Mitre:   best.mitre,
-		Tactic:  best.tactic,
-		Source:  "rule", // TEMP: real P2 sets "rule" or "llm"
-		Ts:      ts,
+		Executable:     e.Executable,
+		Command:        cmd,
+		RiskScore:      best.score,
+		Band:           s.bands.classify(best.score),
+		Verdict:        best.verdict,
+		Reason:         best.reason,
+		Mitre:          best.mitre,
+		RiskIndicators: indicators,
+		Source:         "rule", // TEMP: real P2 sets "rule" or "llm"
+		Ts:             ts,
 	}
 	if !matched {
 		v.Verdict = "benign"

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -145,7 +146,7 @@ func main() {
 	}()
 
 	// Read loop: decode the envelope, route execs to the pool, skip the rest.
-	var read, nonExec int64
+	var read, nonExec, emptyCmd int64
 	sc := bufio.NewScanner(os.Stdin)
 	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024) // argv lines can be long
 	seq := 0
@@ -172,6 +173,14 @@ func main() {
 			continue
 		}
 
+		// Upstream read failures can yield an exec with empty/whitespace argv
+		// (e.g. "command":" "). Scoring whitespace just makes the model
+		// hallucinate — drop it instead.
+		if strings.TrimSpace(ev.CommandLine()) == "" {
+			emptyCmd++
+			continue
+		}
+
 		jobs <- job{seq: seq, ev: ev}
 		seq++
 
@@ -188,6 +197,6 @@ func main() {
 	close(results)
 	<-done
 
-	fmt.Fprintf(os.Stderr, "read=%d exec_scored=%d cache_hits=%d non_exec_skipped=%d\n",
-		read, atomic.LoadInt64(&p.scored), atomic.LoadInt64(&p.hits), nonExec)
+	fmt.Fprintf(os.Stderr, "read=%d exec_scored=%d cache_hits=%d non_exec_skipped=%d empty_cmd_skipped=%d\n",
+		read, atomic.LoadInt64(&p.scored), atomic.LoadInt64(&p.hits), nonExec, emptyCmd)
 }

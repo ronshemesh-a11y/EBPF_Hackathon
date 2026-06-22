@@ -24,7 +24,7 @@ func TestMockBackendBands(t *testing.T) {
 	for _, c := range cases {
 		v := a.Score(types.Event{Argv: c.argv})
 		if v.Band != c.want {
-			t.Errorf("argv %v: band=%s want %s (score=%.2f)", c.argv, v.Band, c.want, v.Score)
+			t.Errorf("argv %v: band=%s want %s (score=%.2f)", c.argv, v.Band, c.want, v.RiskScore)
 		}
 		if v.Command == "" {
 			t.Errorf("argv %v: empty command", c.argv)
@@ -43,8 +43,8 @@ func TestCacheReusesScore(t *testing.T) {
 	if v2.Source != "cache" {
 		t.Errorf("second source=%s want cache", v2.Source)
 	}
-	if v2.Pid != 2 {
-		t.Errorf("cached verdict should re-stamp pid: got %d", v2.Pid)
+	if v2.Command != "ls -la" {
+		t.Errorf("cached verdict should carry the new event's command: got %q", v2.Command)
 	}
 }
 

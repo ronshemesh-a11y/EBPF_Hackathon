@@ -152,14 +152,13 @@ func formatText(v types.Verdict) string {
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s *%s* exectrace alert — `%s`\n", marker, v.Band, v.Command)
-	fmt.Fprintf(&b, "verdict=%s score=%.2f", v.Verdict, v.Score)
-	if v.Tactic != "" {
-		fmt.Fprintf(&b, " tactic=%s", v.Tactic)
+	fmt.Fprintf(&b, "verdict=%s score=%.2f", v.Verdict, v.RiskScore)
+	if len(v.RiskIndicators) > 0 {
+		fmt.Fprintf(&b, " indicators=%s", strings.Join(v.RiskIndicators, ","))
 	}
 	if len(v.Mitre) > 0 {
 		fmt.Fprintf(&b, " mitre=%s", strings.Join(v.Mitre, ","))
 	}
-	fmt.Fprintf(&b, " pid=%d", v.Pid)
 	if !v.Ts.IsZero() {
 		fmt.Fprintf(&b, " ts=%s", v.Ts.Format(time.RFC3339))
 	}

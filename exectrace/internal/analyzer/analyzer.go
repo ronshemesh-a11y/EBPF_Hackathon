@@ -157,20 +157,21 @@ func verdictFrom(e types.Event, r scoreResult, source string) types.Verdict {
 	if verdict == "" {
 		verdict = verdictForScore(r.RiskScore)
 	}
-	reason := r.Reason
-	if len(r.RiskIndicators) > 0 {
-		reason = strings.TrimSpace(reason + " [" + strings.Join(r.RiskIndicators, ",") + "]")
+	indicators := r.RiskIndicators
+	if indicators == nil {
+		indicators = []string{}
 	}
 	return types.Verdict{
-		Pid:     e.Pid,
-		Command: commandLine(e),
-		Score:   r.RiskScore,
-		Band:    bandFor(r.RiskScore),
-		Verdict: verdict,
-		Reason:  reason,
-		Mitre:   r.Mitre,
-		Source:  source,
-		Ts:      e.Ts,
+		Executable:     e.Executable,
+		Command:        commandLine(e),
+		RiskScore:      r.RiskScore,
+		Band:           bandFor(r.RiskScore),
+		Verdict:        verdict,
+		Reason:         r.Reason,
+		Mitre:          r.Mitre,
+		RiskIndicators: indicators,
+		Source:         source,
+		Ts:             e.Ts,
 	}
 }
 
@@ -178,13 +179,15 @@ func verdictFrom(e types.Event, r scoreResult, source string) types.Verdict {
 // failure is visible downstream rather than silently benign.
 func errorVerdict(e types.Event, err error) types.Verdict {
 	return types.Verdict{
-		Pid:     e.Pid,
-		Command: commandLine(e),
-		Score:   0.5,
-		Band:    types.BandGray,
-		Verdict: "error",
-		Reason:  "scorer error: " + err.Error(),
-		Source:  "error",
-		Ts:      e.Ts,
+		Executable:     e.Executable,
+		Command:        commandLine(e),
+		RiskScore:      0.5,
+		Band:           types.BandGray,
+		Verdict:        "error",
+		Reason:         "scorer error: " + err.Error(),
+		Mitre:          []string{},
+		RiskIndicators: []string{},
+		Source:         "error",
+		Ts:             e.Ts,
 	}
 }

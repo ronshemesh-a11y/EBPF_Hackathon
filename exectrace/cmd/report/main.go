@@ -51,6 +51,7 @@ func main() {
 	slackThreshold := flag.String("slack-threshold", "HIGH", "lowest band that notifies Slack: LOW|GRAY|HIGH")
 	scorerName := flag.String("scorer", "mockp2", "scorer: mockp2 | llm (P2 Ollama) | llm-mock (P2 keyword backend)")
 	model := flag.String("model", "llama3.2:1b", "Ollama model for --scorer=llm")
+	inputMode := flag.String("input", "events", "stdin format: events (Event NDJSON, scored in-process) | verdicts (pre-scored P2 Verdict NDJSON)")
 	flag.Parse()
 
 	color := !*noColor && os.Getenv("NO_COLOR") == "" && isTTY(os.Stdout)
@@ -78,6 +79,7 @@ func main() {
 	rep := report.New(orDiscard(repOut), *threshold, color, start)
 	enc := json.NewEncoder(os.Stdout)
 
+	verdicts := *inputMode == "verdicts"
 	sc := bufio.NewScanner(os.Stdin)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	last := start
@@ -86,12 +88,21 @@ func main() {
 		if len(line) == 0 {
 			continue
 		}
-		var e types.Event
-		if err := json.Unmarshal(line, &e); err != nil {
-			fmt.Fprintf(os.Stderr, "report: bad event: %v\n", err)
-			continue
+		var v types.Verdict
+		if verdicts {
+			// Pre-scored P2 output: decode the Verdict directly, no scoring.
+			if err := json.Unmarshal(line, &v); err != nil {
+				fmt.Fprintf(os.Stderr, "report: bad verdict: %v\n", err)
+				continue
+			}
+		} else {
+			var e types.Event
+			if err := json.Unmarshal(line, &e); err != nil {
+				fmt.Fprintf(os.Stderr, "report: bad event: %v\n", err)
+				continue
+			}
+			v = scorer.Score(e)
 		}
-		v := scorer.Score(e)
 		shown := rep.Handle(v) // records summary; prints text unless discarded
 		notifier.Maybe(v)      // no-op when unconfigured or below slack threshold
 		if *jsonOut && shown {
@@ -99,8 +110,8 @@ func main() {
 				fmt.Fprintf(os.Stderr, "report: encode: %v\n", err)
 			}
 		}
-		if !e.Ts.IsZero() {
-			last = e.Ts
+		if !v.Ts.IsZero() {
+			last = v.Ts
 		}
 	}
 	if err := sc.Err(); err != nil {

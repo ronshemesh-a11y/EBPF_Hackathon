@@ -31,19 +31,24 @@ type Event struct {
 }
 
 // Verdict is the scorer's judgement of a single Event. This struct is the
-// contract with P2 (the real scorer/LLM stage): mockp2 must match it exactly,
-// and reconciling any change here with P2 is required before wiring real data.
+// contract with P2 (the real scorer/LLM stage) and its JSON tags are
+// byte-identical to scorer/verdict.go's Verdict, so `scorer | report --input
+// verdicts` round-trips. Per-process identity (pid/comm/…) is intentionally
+// absent: the minimal P1 stream doesn't carry it, so it would always be blank.
+//
+// Ts is time.Time here; the scorer emits ts as an RFC3339 string, which
+// unmarshals into time.Time cleanly.
 type Verdict struct {
-	Pid     int       `json:"pid"`
-	Command string    `json:"command"`
-	Score   float64   `json:"score"`
-	Band    string    `json:"band"`    // LOW | GRAY | HIGH
-	Verdict string    `json:"verdict"` // benign | suspicious | malicious | unknown
-	Reason  string    `json:"reason"`
-	Mitre   []string  `json:"mitre"`
-	Tactic  string    `json:"tactic"`
-	Source  string    `json:"source"` // rule | llm
-	Ts      time.Time `json:"ts"`
+	Executable     string    `json:"executable"`
+	Command        string    `json:"command"`
+	RiskScore      float64   `json:"risk_score"`
+	Verdict        string    `json:"verdict"` // benign | suspicious | malicious
+	Band           string    `json:"band"`    // LOW | GRAY | HIGH
+	Reason         string    `json:"reason"`
+	Mitre          []string  `json:"mitre"`
+	RiskIndicators []string  `json:"risk_indicators"`
+	Source         string    `json:"source"` // rule | llm | cache | error
+	Ts             time.Time `json:"ts"`
 }
 
 // Band constants. Cutoffs themselves are config (flags/env), not hardcoded

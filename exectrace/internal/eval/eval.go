@@ -139,10 +139,9 @@ func toRow(v types.Verdict) FlaggedRow {
 		Command: v.Command,
 		Band:    v.Band,
 		Verdict: v.Verdict,
-		Score:   v.Score,
+		Score:   v.RiskScore,
 		Reason:  v.Reason,
 		Mitre:   v.Mitre,
-		Tactic:  v.Tactic,
 	}
 }
 
@@ -219,13 +218,13 @@ func (s *Scorer) Report() string {
 	if len(s.FalseAlarms) > 0 {
 		fmt.Fprintf(&b, "\nFALSE POSITIVES (flagged but labeled benign) — %d:\n", len(s.FalseAlarms))
 		for _, v := range s.FalseAlarms {
-			fmt.Fprintf(&b, "  + %-55s  %s/%.2f  %s\n", trunc(v.Command, 55), v.Band, v.Score, v.Reason)
+			fmt.Fprintf(&b, "  + %-55s  %s/%.2f  %s\n", trunc(v.Command, 55), v.Band, v.RiskScore, v.Reason)
 		}
 	}
 	if len(s.Misses) > 0 {
 		fmt.Fprintf(&b, "\nMISSED (labeled threat but not flagged) — %d:\n", len(s.Misses))
 		for _, v := range s.Misses {
-			fmt.Fprintf(&b, "  - %-55s  %s/%.2f  %s\n", trunc(v.Command, 55), v.Band, v.Score, v.Verdict)
+			fmt.Fprintf(&b, "  - %-55s  %s/%.2f  %s\n", trunc(v.Command, 55), v.Band, v.RiskScore, v.Verdict)
 		}
 	}
 	return b.String()

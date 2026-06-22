@@ -100,10 +100,10 @@ func (r *Reporter) Handle(v types.Verdict) bool {
 func (r *Reporter) format(v types.Verdict) string {
 	c := r.pal.forBand(v.Band)
 	ts := v.Ts.Format("15:04:05.000")
-	// Tag suffix: [tactic] [mitre,…]
+	// Tag suffix: [risk_indicators] [mitre,…]
 	var tags []string
-	if v.Tactic != "" {
-		tags = append(tags, v.Tactic)
+	if len(v.RiskIndicators) > 0 {
+		tags = append(tags, strings.Join(v.RiskIndicators, ","))
 	}
 	if len(v.Mitre) > 0 {
 		tags = append(tags, strings.Join(v.Mitre, ","))
@@ -116,7 +116,7 @@ func (r *Reporter) format(v types.Verdict) string {
 	return fmt.Sprintf("%s%s%s  %-50s  %s%-4s %0.2f%s  %s%s%s",
 		r.pal.dim, ts, r.pal.reset,
 		truncate(v.Command, 50),
-		c, v.Band, v.Score, r.pal.reset,
+		c, v.Band, v.RiskScore, r.pal.reset,
 		r.pal.dim, v.Reason, r.pal.reset,
 	) + suffix
 }

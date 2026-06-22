@@ -18,7 +18,7 @@ func vc(cmd, band string) types.Verdict {
 	case types.BandGray:
 		verdict = "suspicious"
 	}
-	return types.Verdict{Command: cmd, Band: band, Verdict: verdict, Score: 0.5}
+	return types.Verdict{Command: cmd, Band: band, Verdict: verdict, RiskScore: 0.5}
 }
 
 // TestScorecardKnownFixture pins recall/precision/F1 on a hand-picked set:
