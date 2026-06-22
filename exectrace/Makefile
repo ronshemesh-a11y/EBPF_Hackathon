@@ -9,9 +9,14 @@ THRESHOLD ?= GRAY
 OUT    ?=
 TRUTH  ?=
 
-.PHONY: all build replay report eval bench compare pipe test clean tidy
+.PHONY: all build ui replay report eval bench compare pipe serve web test clean tidy
 
 all: build
+
+# Build the React SOC console into internal/server/dist (embedded by the Go
+# server). Run this before `build` whenever the UI changes.
+ui:
+	cd web && npm install && npm run build
 
 build:
 	@mkdir -p $(BINDIR)
@@ -19,6 +24,7 @@ build:
 	$(GO) build -o $(BINDIR)/report  ./cmd/report
 	$(GO) build -o $(BINDIR)/eval    ./cmd/eval
 	$(GO) build -o $(BINDIR)/compare ./cmd/compare
+	$(GO) build -o $(BINDIR)/server  ./cmd/server
 
 # Stream events from a corpus as NDJSON (the bridge for the whole pipeline).
 #   make replay FILE=testdata/sample.csv RATE=5
@@ -34,6 +40,16 @@ report: build
 #   make pipe FILE=testdata/sample.csv
 pipe: build
 	$(BINDIR)/replay --file $(FILE) --rate $(RATE) | $(BINDIR)/report --threshold $(THRESHOLD)
+
+# Web server: read Verdict NDJSON on stdin, serve the live page on :8080.
+#   ... | make serve          (e.g. scorer | server, or report --json | server)
+serve: build
+	$(BINDIR)/server
+
+# Live web demo: replay a corpus through report --json into the server.
+#   make web FILE=testdata/sample.csv  → open http://localhost:8080
+web: build
+	$(BINDIR)/replay --file $(FILE) --rate $(RATE) | $(BINDIR)/report --json --threshold LOW | $(BINDIR)/server
 
 # Benchmark against the label column, optionally persisting to OUT.
 #   make eval FILE=testdata/sample.csv OUT=results.json

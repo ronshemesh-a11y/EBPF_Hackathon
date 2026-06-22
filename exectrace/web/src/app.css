@@ -1,0 +1,52 @@
+/* DM Mono first so the @import-before-rules rule is satisfied even though the
+   Upwind fonts.css carries its own (valid) copy. */
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap");
+
+/* Upwind tokens, then Tailwind layers. Everything below styles only from
+   Upwind CSS variables — no hardcoded hex. */
+@import "./styles/upwind/styles.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-default-family);
+  font-size: var(--font-default-size);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Thin Upwind-styled scrollbars for the dense console panels. */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border-primary);
+  border-radius: var(--radius-pill);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* New-row flash when a verdict streams into the feed. */
+@keyframes uw-flash {
+  from {
+    background: var(--severity-info-bg);
+  }
+  to {
+    background: transparent;
+  }
+}
+.uw-flash {
+  animation: uw-flash 0.7s ease-out;
+}

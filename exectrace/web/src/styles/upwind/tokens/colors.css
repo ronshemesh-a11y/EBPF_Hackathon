@@ -1,0 +1,176 @@
+/* =========================================================
+   Upwind — color tokens
+   Base palette + semantic aliases. Light theme on :root,
+   dark theme under [data-theme="dark"].
+   ========================================================= */
+
+:root {
+  /* ---------- white / transparent ---------- */
+  --uw-white: #ffffff;
+  --transparent: transparent;
+
+  /* ---------- grays (light) ---------- */
+  --uw-gray-01: #18202D; /* primary text */
+  --uw-gray-02: #75808E; /* secondary text */
+  --uw-gray-03: #94A3B8; /* tertiary / disabled */
+  --uw-gray-04: #D8DFE9; /* subtle border */
+  --uw-gray-05: #F2F7FC; /* hover bg */
+  --uw-gray-06: #F8FAFC; /* page bg */
+
+  /* ---------- brand primary (blue) ---------- */
+  --uw-primary-01: #205CB6;
+  --uw-primary-02: #2C72DD; /* the brand blue */
+  --uw-primary-03: #5697EA;
+  --uw-primary-04: #ACD0FC;
+  --uw-primary-05: #E9F1FF;
+  --uw-primary-06: #F3F7FF;
+
+  --uw-blue-01: #205CB6; --uw-blue-02: #2C72DD; --uw-blue-03: #5697EA;
+  --uw-blue-04: #ACD0FC; --uw-blue-05: #E9F1FF; --uw-blue-06: #F3F7FF;
+
+  /* ---------- purple ---------- */
+  --uw-purple-01: #6B4C87; --uw-purple-02: #9168B6; --uw-purple-03: #C3A6DD;
+  --uw-purple-04: #D6C7E9; --uw-purple-05: #F6F0FF; --uw-purple-06: #FCFAFF;
+
+  --uw-royal-purple-01: #553BF1; --uw-royal-purple-02: #7762F8; --uw-royal-purple-03: #A191FD;
+  --uw-royal-purple-04: #D3CCFF; --uw-royal-purple-05: #EAE7FF; --uw-royal-purple-06: #F7F5FF;
+
+  /* ---------- semantic hues: pink / red / amber / yellow / green ---------- */
+  --uw-pink-01: #D10057; --uw-pink-02: #e90262; --uw-pink-03: #f47d93;
+  --uw-pink-04: #FFB8C5; --uw-pink-05: #FFE3E8; --uw-pink-06: #fff3f5;
+
+  --uw-red-01: #cc3014; --uw-red-02: #f2583c; --uw-red-03: #f89684;
+  --uw-red-04: #FFBDB0; --uw-red-05: #FFE3DE; --uw-red-06: #fff2f0;
+
+  --uw-amber-01: #C96400; --uw-amber-02: #ff8710; --uw-amber-03: #fca643;
+  --uw-amber-04: #ffc87a; --uw-amber-05: #ffeade; --uw-amber-06: #FFF7F2;
+
+  --uw-yellow-01: #D19A00; --uw-yellow-02: #f0b100; --uw-yellow-03: #FED237;
+  --uw-yellow-04: #ffe485; --uw-yellow-05: #fff8e0; --uw-yellow-06: #FFFAE7;
+
+  --uw-green-01: #167045; --uw-green-02: #1fa062; --uw-green-03: #59C390;
+  --uw-green-04: #BFF0D9; --uw-green-05: #e2fff4; --uw-green-06: #F3FFFB;
+
+  /* ---------- accent hues ---------- */
+  --uw-metal-blue-01: #005DA0; --uw-metal-blue-02: #38acff; --uw-metal-blue-03: #6CCAFF;
+  --uw-metal-blue-04: #A3DEFF; --uw-metal-blue-05: #D9F4FF; --uw-metal-blue-06: #EDF7FF;
+
+  --uw-cyan-01: #008DAA; --uw-cyan-02: #00c3eb; --uw-cyan-03: #43d5f2;
+  --uw-cyan-04: #73E4FB; --uw-cyan-05: #C5F4FF; --uw-cyan-06: #ecf9fc;
+
+  --uw-eggplant-01: #702172; --uw-eggplant-02: #9D509E; --uw-eggplant-03: #C971CB;
+  --uw-eggplant-04: #E2AEFB; --uw-eggplant-05: #F1DFFF; --uw-eggplant-06: #FAF1FF;
+
+  --uw-magenta-01: #8F005E; --uw-magenta-02: #B30076; --uw-magenta-03: #D166AD;
+  --uw-magenta-04: #CF88B8; --uw-magenta-05: #F0CCE3; --uw-magenta-06: #FFF5FB;
+
+  --uw-electric-blue-01: #0039CC; --uw-electric-blue-02: #0047FF; --uw-electric-blue-03: #4D7EFF;
+  --uw-electric-blue-04: #85A7FF; --uw-electric-blue-05: #C2D3FF; --uw-electric-blue-06: #EFF4FF;
+
+  /* ---------- critical severity (unique palette) ---------- */
+  --uw-critical-01: #EC6850;
+  --uw-critical-02: #FFBFB4;
+  --uw-critical-03: #FFE6E3;
+  --uw-critical-line: #FFCFC7;
+
+  /* =======================================================
+     SEMANTIC ALIASES (light theme)
+     ======================================================= */
+
+  /* surfaces / backgrounds */
+  --bg-primary: #ffffff;
+  --bg-secondary: #F8FAFC;
+  --bg-tertiary: #F2F7FC;
+  --surface: #ffffff;
+  --surface-card: #ffffff;
+  --surface-elevated: #ffffff;
+
+  /* borders */
+  --border-primary: #d0d5dd;
+  --border-subtle: #D8DFE9;
+
+  /* text */
+  --text-primary: #18202D;
+  --text-secondary: #75808E;
+  --text-tertiary: #94A3B8;
+  --text-disabled: #94A3B8;
+  --text-inverse: #ffffff;
+  --text-link: #2C72DD;
+
+  /* interactive states */
+  --interactive-hover: #F2F7FC;
+  --interactive-double-hover: rgba(216, 223, 233, 0.4);
+  --interactive-active: #D8DFE9;
+  --side-pane-mask: #75808E;
+
+  /* brand action */
+  --action-primary: #2C72DD;
+  --action-primary-hover: #205CB6;
+  --action-primary-active: #1B4E9C;
+
+  /* severity scale (CNAPP findings) */
+  --severity-critical: #EC6850;
+  --severity-critical-bg: #FFE6E3;
+  --severity-high: #f2583c;
+  --severity-high-bg: #FFE3DE;
+  --severity-medium: #ff8710;
+  --severity-medium-bg: #ffeade;
+  --severity-low: #f0b100;
+  --severity-low-bg: #fff8e0;
+  --severity-info: #75808E;
+  --severity-info-bg: #F2F7FC;
+  --severity-safe: #1fa062;
+  --severity-safe-bg: #e2fff4;
+}
+
+/* =========================================================
+   Dark theme overrides
+   ========================================================= */
+[data-theme="dark"] {
+  --uw-gray-01: #B9C2CE; --uw-gray-02: #9BA8B9; --uw-gray-03: #7C8694;
+  --uw-gray-04: #5D656F; --uw-gray-05: #3E434A; --uw-gray-06: #1F2225;
+
+  --uw-primary-01: #4DAFFF; --uw-primary-02: #008CFF; --uw-primary-03: #0070CC;
+  --uw-primary-04: #005499; --uw-primary-05: #022A4B; --uw-primary-06: #001C33;
+  --uw-blue-01: #4DAFFF; --uw-blue-02: #008CFF; --uw-blue-03: #0070CC;
+  --uw-blue-04: #005499; --uw-blue-05: #022A4B; --uw-blue-06: #001C33;
+
+  --bg-primary: #171A1C;
+  --bg-secondary: #2F3339;
+  --bg-tertiary: #5E6672;
+  --surface: #1C1F21;
+  --surface-card: #1C1F21;
+  --surface-elevated: #23262A;
+
+  --border-primary: #7C8694;
+  --border-subtle: #2F3339;
+
+  --text-primary: #B9C2CE;
+  --text-secondary: #9BA8B9;
+  --text-tertiary: #7C8694;
+  --text-disabled: #4b5563;
+  --text-inverse: #171A1C;
+  --text-link: #4DAFFF;
+
+  --interactive-hover: #1F2225;
+  --interactive-active: #7C8694;
+
+  --action-primary: #008CFF;
+  --action-primary-hover: #4DAFFF;
+  --action-primary-active: #0070CC;
+
+  --uw-critical-01: #BC1E00;
+  --uw-critical-02: #E14E33;
+  --uw-critical-03: #FF8169;
+
+  --severity-critical: #EC6850;
+  --severity-critical-bg: #3a2320;
+  --severity-high: #f2583c;
+  --severity-high-bg: #3a221d;
+  --severity-medium: #ff8710;
+  --severity-medium-bg: #382616;
+  --severity-low: #f0b100;
+  --severity-low-bg: #362f15;
+  --severity-info-bg: #1F2225;
+  --severity-safe-bg: #16291f;
+}

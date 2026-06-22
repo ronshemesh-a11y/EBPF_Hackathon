@@ -1,0 +1,49 @@
+/* =========================================================
+   Upwind — spacing, radii, shadows, gradients, layout
+   ========================================================= */
+
+:root {
+  /* ---------- spacing scale (4px base) ---------- */
+  --space-2: 2px;  --space-4: 4px;  --space-6: 6px;  --space-8: 8px;
+  --space-12: 12px; --space-16: 16px; --space-20: 20px; --space-24: 24px;
+  --space-32: 32px; --space-40: 40px; --space-48: 48px; --space-64: 64px;
+
+  /* ---------- radii ---------- */
+  --radius-2: 2px;
+  --radius-4: 4px;   /* default — buttons, badges, inputs */
+  --radius-8: 8px;
+  --radius-16: 16px;
+  --radius-24: 24px; /* large container boxes */
+  --radius-pill: 50px;
+  --radius-circle: 50%;
+
+  /* ---------- shadows ---------- */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --shadow-card: 0 2px 8px 0 rgba(0, 0, 0, 0.2);
+  --menu-shadow: 0px 2px 8px 0px rgba(52, 64, 84, 0.2);
+
+  /* ---------- signature gradient (hero / marketing only) ---------- */
+  --upwind-theme-gradient: linear-gradient(94deg, #F2583C -1.2%, #9214C4 52.79%, #1E71ED 98.47%); /* @kind color */
+  --upwind-theme-gradient-medium: linear-gradient(94deg, #E89EA8 -1.2%, #C485DC 52.79%, #93ACEE 98.47%); /* @kind color */
+  --upwind-theme-gradient-light: linear-gradient(94deg, #F1CDD7 -1.2%, #E2C3EC 52.79%, #CBD4F6 98.47%); /* @kind color */
+
+  /* ---------- layout constants ---------- */
+  --upwind-header-height: 56px;
+  --upwind-tab-header-height: 48px;
+  --upwind-sidebar-width: 224px;
+  --upwind-sidebar-collapsed: 56px;
+  --upwind-breakpoint-sm: 1440px;
+  --upwind-breakpoint-md: 1920px;
+  --upwind-breakpoint-lg: 2560px;
+}
+
+[data-theme="dark"] {
+  --shadow-card: 0 2px 8px 0 rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  --menu-shadow: 0px 2px 8px 0px rgba(0, 0, 0, 0.6);
+  --upwind-theme-gradient: linear-gradient(94deg, #EE745D -1.2%, #B360EA 52.79%, #008CFF 98.47%); /* @kind color */
+}
