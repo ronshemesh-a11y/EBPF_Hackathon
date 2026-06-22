@@ -15,17 +15,6 @@ struct {
 	__uint(max_entries, 1 << 24); /* 16 MB */
 } events SEC(".maps");
 
-/*
- * Per-CPU scratch: struct event is ~3.8 KB, far above the 512-byte BPF stack
- * limit.  We build the event here, then reserve+copy into the ring buffer.
- */
-struct {
-	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-	__uint(max_entries, 1);
-	__type(key, __u32);
-	__type(value, struct event);
-} scratch SEC(".maps");
-
 /* Running count of ring-buffer drops (surfaced in every JSON envelope). */
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
@@ -67,17 +56,22 @@ static __always_inline void fill_common(struct event *e, __u32 etype)
 	BPF_CORE_READ_INTO(&e->parent_comm, t, real_parent, comm);
 }
 
-/* Reserve space in the ring buffer, copy the scratch event, and submit. */
-static __always_inline int submit(struct event *e)
+/*
+ * Reserve an event in the ring buffer and fill the common envelope.
+ * Building the event directly in the ring buffer (rather than a per-CPU
+ * scratch + memcpy) keeps us off the 512-byte BPF stack and avoids large
+ * __builtin_memcpy/memset libcalls that the BPF backend can't lower.
+ * Returns NULL (and bumps the drop counter) if the buffer is full.
+ */
+static __always_inline struct event *new_event(__u32 etype)
 {
-	struct event *out = bpf_ringbuf_reserve(&events, sizeof(*out), 0);
-	if (!out) {
+	struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+	if (!e) {
 		inc_drop();
-		return 0;
+		return NULL;
 	}
-	__builtin_memcpy(out, e, sizeof(*out));
-	bpf_ringbuf_submit(out, 0);
-	return 0;
+	fill_common(e, etype);
+	return e;
 }
 
 /* ── execve / execveat ───────────────────────────────────────────────────── */
@@ -87,13 +81,17 @@ static __always_inline int emit_exec(const char *filename,
 				     const char *const *envp,
 				     __u8 is_at)
 {
-	__u32 z = 0;
-	struct event *e = bpf_map_lookup_elem(&scratch, &z);
+	struct event *e = new_event(EVENT_EXEC);
 	if (!e)
 		return 0;
-	__builtin_memset(e, 0, sizeof(*e));
-	fill_common(e, EVENT_EXEC);
-	e->is_execveat = is_at;
+
+	/* Initialise the optional / count fields we may not otherwise write. */
+	e->args_count     = 0;
+	e->argv_truncated = 0;
+	e->arg_clipped    = 0;
+	e->is_execveat    = is_at;
+	e->ld_preload[0]      = '\0';
+	e->ld_library_path[0] = '\0';
 
 	bpf_probe_read_user_str(e->filename, sizeof(e->filename), filename);
 
@@ -135,7 +133,8 @@ done_argv:
 			bpf_probe_read_user_str(e->ld_library_path, sizeof(e->ld_library_path), p + 16);
 	}
 
-	return submit(e);
+	bpf_ringbuf_submit(e, 0);
+	return 0;
 }
 
 SEC("tracepoint/syscalls/sys_enter_execve")
@@ -160,14 +159,12 @@ int handle_execveat(struct trace_event_raw_sys_enter *ctx)
 SEC("tracepoint/sched/sched_process_fork")
 int handle_fork(struct trace_event_raw_sched_process_fork *ctx)
 {
-	__u32 z = 0;
-	struct event *e = bpf_map_lookup_elem(&scratch, &z);
+	struct event *e = new_event(EVENT_FORK);
 	if (!e)
 		return 0;
-	__builtin_memset(e, 0, sizeof(*e));
-	fill_common(e, EVENT_FORK);
 	e->child_pid = ctx->child_pid;
-	return submit(e);
+	bpf_ringbuf_submit(e, 0);
+	return 0;
 }
 
 /* ── sched_process_exit ──────────────────────────────────────────────────── */
@@ -175,13 +172,11 @@ int handle_fork(struct trace_event_raw_sched_process_fork *ctx)
 SEC("tracepoint/sched/sched_process_exit")
 int handle_exit(struct trace_event_raw_sched_process_template *ctx)
 {
-	__u32 z = 0;
-	struct event *e = bpf_map_lookup_elem(&scratch, &z);
+	struct event *e = new_event(EVENT_EXIT);
 	if (!e)
 		return 0;
-	__builtin_memset(e, 0, sizeof(*e));
-	fill_common(e, EVENT_EXIT);
-	return submit(e);
+	bpf_ringbuf_submit(e, 0);
+	return 0;
 }
 
 /* ── setuid / setreuid / setresuid ───────────────────────────────────────── */
@@ -208,17 +203,15 @@ static __always_inline int emit_setuid(struct trace_event_raw_sys_enter *ctx,
 	if (!any_root)
 		return 0;
 
-	__u32 z = 0;
-	struct event *e = bpf_map_lookup_elem(&scratch, &z);
+	struct event *e = new_event(EVENT_SETUID);
 	if (!e)
 		return 0;
-	__builtin_memset(e, 0, sizeof(*e));
-	fill_common(e, EVENT_SETUID);
 
 	e->old_uid        = (__u32)(bpf_get_current_uid_gid() & 0xFFFFFFFF);
 	e->new_uid        = a0;  /* first arg (ruid / uid) */
 	e->setuid_variant = variant;
-	return submit(e);
+	bpf_ringbuf_submit(e, 0);
+	return 0;
 }
 
 SEC("tracepoint/syscalls/sys_enter_setuid")
@@ -244,15 +237,13 @@ int handle_setresuid(struct trace_event_raw_sys_enter *ctx)
 SEC("tracepoint/syscalls/sys_enter_memfd_create")
 int handle_memfd(struct trace_event_raw_sys_enter *ctx)
 {
-	__u32 z = 0;
-	struct event *e = bpf_map_lookup_elem(&scratch, &z);
+	struct event *e = new_event(EVENT_MEMFD);
 	if (!e)
 		return 0;
-	__builtin_memset(e, 0, sizeof(*e));
-	fill_common(e, EVENT_MEMFD);
 	bpf_probe_read_user_str(e->name, sizeof(e->name), (const char *)ctx->args[0]);
 	e->flags = (__u32)ctx->args[1];
-	return submit(e);
+	bpf_ringbuf_submit(e, 0);
+	return 0;
 }
 
 /* ── chmod / fchmod ──────────────────────────────────────────────────────── */
@@ -281,15 +272,14 @@ int handle_chmod(struct trace_event_raw_sys_enter *ctx)
 	      __builtin_memcmp(pathbuf, "/var/tmp/",  9) == 0))
 		return 0;
 
-	__u32 z = 0;
-	struct event *e = bpf_map_lookup_elem(&scratch, &z);
+	struct event *e = new_event(EVENT_CHMOD);
 	if (!e)
 		return 0;
-	__builtin_memset(e, 0, sizeof(*e));
-	fill_common(e, EVENT_CHMOD);
-	__builtin_memcpy(e->filepath, pathbuf, sizeof(e->filepath));
+	bpf_probe_read_user_str(e->filepath, sizeof(e->filepath),
+				(const char *)ctx->args[0]);
 	e->mode = mode;
-	return submit(e);
+	bpf_ringbuf_submit(e, 0);
+	return 0;
 }
 
 /*
@@ -304,15 +294,13 @@ int handle_fchmod(struct trace_event_raw_sys_enter *ctx)
 	if (!(mode & 0111))
 		return 0;
 
-	__u32 z = 0;
-	struct event *e = bpf_map_lookup_elem(&scratch, &z);
+	struct event *e = new_event(EVENT_FCHMOD);
 	if (!e)
 		return 0;
-	__builtin_memset(e, 0, sizeof(*e));
-	fill_common(e, EVENT_FCHMOD);
 	e->fd   = (__u32)ctx->args[0];
 	e->mode = mode;
-	return submit(e);
+	bpf_ringbuf_submit(e, 0);
+	return 0;
 }
 
 /* ── openat ──────────────────────────────────────────────────────────────── */
@@ -340,15 +328,14 @@ int handle_openat(struct trace_event_raw_sys_enter *ctx)
 	      __builtin_memcmp(buf, "/etc/systemd/system/",  20) == 0))
 		return 0;
 
-	__u32 z = 0;
-	struct event *e = bpf_map_lookup_elem(&scratch, &z);
+	struct event *e = new_event(EVENT_OPENAT);
 	if (!e)
 		return 0;
-	__builtin_memset(e, 0, sizeof(*e));
-	fill_common(e, EVENT_OPENAT);
-	__builtin_memcpy(e->filepath, buf, sizeof(e->filepath));
+	bpf_probe_read_user_str(e->filepath, sizeof(e->filepath),
+				(const char *)ctx->args[1]);
 	e->open_flags = (__u32)ctx->args[2];
-	return submit(e);
+	bpf_ringbuf_submit(e, 0);
+	return 0;
 }
 
 /* ── init_module / finit_module ──────────────────────────────────────────── */
@@ -361,13 +348,11 @@ int handle_openat(struct trace_event_raw_sys_enter *ctx)
 SEC("tracepoint/syscalls/sys_enter_init_module")
 int handle_init_module(struct trace_event_raw_sys_enter *ctx)
 {
-	__u32 z = 0;
-	struct event *e = bpf_map_lookup_elem(&scratch, &z);
+	struct event *e = new_event(EVENT_INIT_MODULE);
 	if (!e)
 		return 0;
-	__builtin_memset(e, 0, sizeof(*e));
-	fill_common(e, EVENT_INIT_MODULE);
-	return submit(e);
+	bpf_ringbuf_submit(e, 0);
+	return 0;
 }
 
 /*
@@ -377,13 +362,11 @@ int handle_init_module(struct trace_event_raw_sys_enter *ctx)
 SEC("tracepoint/syscalls/sys_enter_finit_module")
 int handle_finit_module(struct trace_event_raw_sys_enter *ctx)
 {
-	__u32 z = 0;
-	struct event *e = bpf_map_lookup_elem(&scratch, &z);
+	struct event *e = new_event(EVENT_FINIT_MODULE);
 	if (!e)
 		return 0;
-	__builtin_memset(e, 0, sizeof(*e));
-	fill_common(e, EVENT_FINIT_MODULE);
 	e->fd    = (__u32)ctx->args[0];
 	e->flags = (__u32)ctx->args[2];
-	return submit(e);
+	bpf_ringbuf_submit(e, 0);
+	return 0;
 }
