@@ -9,6 +9,7 @@ export interface Metrics {
   flaggedPct: number; // 0..100
   perBand: { HIGH: number; GRAY: number; LOW: number };
   eventsPerSec: number; // rolling over the last ~10s window
+  epsHistory: number[]; // ~last 60 per-second eps samples, oldest→newest (sparkline)
   connected: boolean;
 }
 
@@ -18,9 +19,9 @@ export interface VerdictsState {
 }
 
 let seq = 0;
-function tag(v: Verdict): FeedItem {
+function tag(v: Verdict, live: boolean): FeedItem {
   seq += 1;
-  return { ...v, _id: `${v.pid}-${v.ts}-${seq}`, _seq: seq };
+  return { ...v, _id: `${v.pid}-${v.ts}-${seq}`, _seq: seq, _live: live };
 }
 
 function tsMillis(v: { ts: string }): number {
@@ -37,6 +38,7 @@ export function useVerdicts(): VerdictsState {
   // arrival timestamps (ms) for the events/sec rolling window
   const arrivals = useRef<number[]>([]);
   const [eps, setEps] = useState(0);
+  const [epsHistory, setEpsHistory] = useState<number[]>([]);
 
   // High-water mark: newest ts already shown from history, so the ws backlog
   // doesn't double-render it.
@@ -50,7 +52,7 @@ export function useVerdicts(): VerdictsState {
     const record = (v: Verdict, isLive: boolean) => {
       if (isLive) arrivals.current.push(Date.now());
       setItems((prev) => {
-        const next = [tag(v), ...prev];
+        const next = [tag(v, isLive), ...prev];
         return next.length > MAX_ITEMS ? next.slice(0, MAX_ITEMS) : next;
       });
     };
@@ -94,11 +96,16 @@ export function useVerdicts(): VerdictsState {
 
     loadHistory().then(() => alive && connect());
 
-    // Recompute events/sec every second over a 10s sliding window.
+    // Recompute events/sec every second over a 10s sliding window, and push a
+    // 1s sample into the ~60s sparkline history.
     const tick = setInterval(() => {
-      const cutoff = Date.now() - 10_000;
-      arrivals.current = arrivals.current.filter((t) => t >= cutoff);
-      setEps(arrivals.current.length / 10);
+      const now = Date.now();
+      arrivals.current = arrivals.current.filter((t) => t >= now - 10_000);
+      const rate = arrivals.current.length / 10;
+      setEps(rate);
+      // Per-second sample = events in the last 1s, so the sparkline shows bursts.
+      const lastSec = arrivals.current.filter((t) => t >= now - 1_000).length;
+      setEpsHistory((prev) => [...prev, lastSec].slice(-60));
     }, 1000);
 
     return () => {
@@ -125,6 +132,7 @@ export function useVerdicts(): VerdictsState {
       flaggedPct: total ? (flagged / total) * 100 : 0,
       perBand,
       eventsPerSec: eps,
+      epsHistory,
       connected,
     },
   };

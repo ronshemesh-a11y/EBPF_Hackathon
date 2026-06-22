@@ -1,12 +1,15 @@
 // Command server is the web entrypoint for exectrace: it reads Verdict NDJSON
-// on stdin (from `report --json`, the scorer binary, or any verdict producer)
-// and serves a live browser page that shows each verdict as it arrives.
+// on stdin and serves a live browser page that shows each verdict as it
+// arrives. Every row on screen corresponds to a verdict that came up the pipe
+// — there is no seeded or sample data.
 //
-//	... | server [--addr :8080]
+// Live path (real eBPF sensor + real LLM):
 //
-// In-memory only (a ring buffer of recent verdicts); storage is a later step.
-// Ingest is stdin for now — it becomes a network endpoint when we package for
-// multiple agents.
+//	sudo ./bin/execguard | ./bin/report --scorer llm --json | ./bin/server
+//
+// The --ingest label is descriptive (the server can't see past its own stdin);
+// set it to record what's actually upstream in the startup log and DB name.
+// Keep replay/mockp2/testdata for eval and offline dev — never wire them here.
 package main
 
 import (
@@ -25,7 +28,8 @@ import (
 
 func main() {
 	addr := flag.String("addr", ":8080", "HTTP listen address")
-	dbPath := flag.String("db", "exectrace.db", "SQLite file for verdict history")
+	dbPath := flag.String("db", "exectrace-live.db", "SQLite file for verdict history (live stream only; never seed from testdata)")
+	ingest := flag.String("ingest", "live execguard · scorer: llm", "descriptive label for what's upstream (shown in startup log)")
 	flag.Parse()
 
 	st, err := store.Open(*dbPath)
@@ -63,6 +67,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "server: input stream ended; page stays up")
 	}()
 
+	fmt.Fprintf(os.Stderr, "server: ingest: %s\n", *ingest)
 	fmt.Fprintf(os.Stderr, "server: listening on http://localhost%s (db=%s)\n", *addr, *dbPath)
 	if err := http.ListenAndServe(*addr, srv.Handler()); err != nil {
 		log.Fatalf("server: %v", err)

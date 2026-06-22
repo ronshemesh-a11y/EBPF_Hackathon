@@ -1,1 +1,0 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/components/alertlist.tsx","./src/components/badge.tsx","./src/components/detailpanel.tsx","./src/components/livefeed.tsx","./src/components/metricbar.tsx","./src/lib/format.ts","./src/lib/severity.ts","./src/lib/types.ts","./src/lib/useverdicts.ts"],"version":"5.9.3"}

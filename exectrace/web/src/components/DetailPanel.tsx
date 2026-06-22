@@ -3,6 +3,7 @@ import { ChevronRight, GitBranch, Info } from "lucide-react";
 import type { FeedItem } from "../lib/types";
 import { severity } from "../lib/severity";
 import { SeverityBadge, MitreTags } from "./Badge";
+import { SourceChip } from "./SourceChip";
 import { Panel, Empty } from "./LiveFeed";
 import { fmtTime } from "../lib/format";
 
@@ -111,6 +112,19 @@ export function DetailPanel({
             </Field>
           )}
 
+          <Field label="Speed">
+            <div className="flex items-center gap-8">
+              <SourceChip source={selected.source} latencyMs={selected.latency_ms} />
+              <span style={{ color: "var(--text-secondary)", fontSize: "12px" }}>
+                {selected.latency_ms !== undefined
+                  ? `scored in ${selected.latency_ms} ms`
+                  : selected.source === "cache"
+                    ? "served from cache (instant)"
+                    : "scored live"}
+              </span>
+            </div>
+          </Field>
+
           <Field label="Process tree">
             <div className="flex flex-wrap items-center gap-4">
               <GitBranch size={15} style={{ color: "var(--text-tertiary)" }} />
@@ -145,7 +159,6 @@ export function DetailPanel({
             <div className="grid" style={{ gridTemplateColumns: "auto 1fr", gap: "4px 12px", fontSize: "12px" }}>
               <Meta k="pid" v={String(selected.pid)} />
               {selected.ppid ? <Meta k="ppid" v={String(selected.ppid)} /> : null}
-              <Meta k="source" v={selected.source || "—"} />
               <Meta k="time" v={fmtTime(selected.ts)} />
             </div>
           </Field>

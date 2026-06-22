@@ -50,3 +50,46 @@ body {
 .uw-flash {
   animation: uw-flash 0.7s ease-out;
 }
+
+/* Quick slide/fade-in for a freshly-arrived LIVE feed row, so the stream
+   visibly races. Applied only to live rows (not history) via a fresh-mount
+   class; no JS timers. */
+@keyframes uw-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.uw-pop {
+  animation: uw-pop 140ms ease-out;
+}
+
+/* Live pulse dot for the throughput hero stat. */
+@keyframes uw-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.7);
+  }
+}
+
+.uw-pulse-dot {
+  animation: uw-pulse 1.2s ease-in-out infinite;
+}
+
+/* Respect reduced-motion: kill all the demo motion, keep the UI static. */
+@media (prefers-reduced-motion: reduce) {
+  .uw-flash,
+  .uw-pop,
+  .uw-pulse-dot {
+    animation: none;
+  }
+}

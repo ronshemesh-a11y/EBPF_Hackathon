@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import type { FeedItem } from "../lib/types";
 import { severity } from "../lib/severity";
 import { fmtTime } from "../lib/format";
+import { SourceChip } from "./SourceChip";
 
 // LiveFeed: every verdict scrolling in, newest on top, color-banded. Commands
 // in DM Mono. Dense rows, Upwind console style.
@@ -23,16 +24,18 @@ export function LiveFeed({
   return (
     <Panel title="Live feed" count={items.length}>
       <div className="overflow-y-auto" style={{ flex: 1 }}>
-        {items.length === 0 && <Empty>waiting for verdicts…</Empty>}
+        {items.length === 0 && <Empty>Waiting for live events…</Empty>}
         {items.map((it) => {
           const s = severity(it.band);
           const selected = it._id === selectedId;
+          // Newest live arrival pops + flashes once (history rows never animate).
+          const isNewLive = it._live && it._seq === lastSeq.current;
           return (
             <button
               key={it._id}
               onClick={() => onSelect(it)}
               className={`flex w-full items-center gap-8 px-12 text-left ${
-                it._seq === lastSeq.current ? "uw-flash" : ""
+                isNewLive ? "uw-flash uw-pop" : ""
               }`}
               style={{
                 height: "30px",
@@ -53,6 +56,7 @@ export function LiveFeed({
               >
                 {it.command}
               </span>
+              <SourceChip source={it.source} latencyMs={it.latency_ms} compact />
               <span
                 className="shrink-0 rounded-4 px-4 font-mono"
                 style={{ color: s.fg, background: s.bg, fontSize: "10px", fontWeight: 500 }}

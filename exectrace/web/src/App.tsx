@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Radar, Circle } from "lucide-react";
+import { Circle } from "lucide-react";
 import { useVerdicts } from "./lib/useVerdicts";
 import type { FeedItem } from "./lib/types";
+import { Logo } from "./components/Logo";
 import { MetricBar } from "./components/MetricBar";
 import { LiveFeed } from "./components/LiveFeed";
 import { AlertList } from "./components/AlertList";
@@ -34,12 +35,12 @@ export default function App() {
         }}
       >
         <div className="flex items-center gap-8">
-          <Radar size={18} style={{ color: "var(--action-primary)" }} />
+          <Logo size={22} />
           <span className="uw-h4" style={{ fontSize: "15px" }}>
             exectrace
           </span>
           <span className="uw-body-sm" style={{ color: "var(--text-tertiary)" }}>
-            SOC console
+            · SOC console
           </span>
         </div>
         <div className="ml-auto">

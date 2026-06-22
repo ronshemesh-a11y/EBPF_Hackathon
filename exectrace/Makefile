@@ -9,7 +9,7 @@ THRESHOLD ?= GRAY
 OUT    ?=
 TRUTH  ?=
 
-.PHONY: all build ui replay report eval bench compare pipe serve web test clean tidy
+.PHONY: all build ui replay report eval bench compare pipe serve live web-offline test clean tidy
 
 all: build
 
@@ -42,14 +42,24 @@ pipe: build
 	$(BINDIR)/replay --file $(FILE) --rate $(RATE) | $(BINDIR)/report --threshold $(THRESHOLD)
 
 # Web server: read Verdict NDJSON on stdin, serve the live page on :8080.
-#   ... | make serve          (e.g. scorer | server, or report --json | server)
+#   ... | make serve          (e.g. report --scorer llm --json | server)
 serve: build
 	$(BINDIR)/server
 
-# Live web demo: replay a corpus through report --json into the server.
-#   make web FILE=testdata/sample.csv  → open http://localhost:8080
-web: build
-	$(BINDIR)/replay --file $(FILE) --rate $(RATE) | $(BINDIR)/report --json --threshold LOW | $(BINDIR)/server
+# LIVE, REAL pipeline — the only path that should feed the served dashboard:
+# real eBPF execs from execguard, scored by the real LLM, into the server.
+# Needs root (eBPF) + Ollama running. execguard is the P1 binary at repo root.
+#   make live  → open http://localhost:8080, then run real commands
+EXECGUARD ?= ../bin/execguard
+MODEL     ?= llama3.2:1b
+live: build
+	sudo $(EXECGUARD) | $(BINDIR)/report --scorer llm --model $(MODEL) --json --threshold LOW | $(BINDIR)/server --ingest "live execguard · scorer: llm ($(MODEL))"
+
+# DEV ONLY — NOT real data. Replay a CSV through the mock scorer for offline UI
+# work. Never use this for the demo; the served dashboard must show real execs.
+#   make web-offline FILE=testdata/sample.csv
+web-offline: build
+	$(BINDIR)/replay --file $(FILE) --rate $(RATE) | $(BINDIR)/report --json --threshold LOW | $(BINDIR)/server --db /tmp/exectrace-offline.db --ingest "OFFLINE replay · mock (dev only)"
 
 # Benchmark against the label column, optionally persisting to OUT.
 #   make eval FILE=testdata/sample.csv OUT=results.json

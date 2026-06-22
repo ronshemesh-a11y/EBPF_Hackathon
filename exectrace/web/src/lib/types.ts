@@ -12,6 +12,10 @@ export interface Verdict {
   tactic: string;
   source: string; // rule | llm | cache | error
   ts: string; // RFC3339
+  // Optional: time the scorer spent on this command. P2 already times the LLM
+  // call — this lights up "scored in N ms" the moment they add the field. A
+  // cache hit is ~0 ms; an llm call is hundreds. We render it only if present.
+  latency_ms?: number;
 }
 
 // A verdict tagged with a stable client-side id + arrival order, so React keys
@@ -19,4 +23,5 @@ export interface Verdict {
 export interface FeedItem extends Verdict {
   _id: string;
   _seq: number;
+  _live: boolean; // arrived over the websocket (vs loaded from history) → animate
 }

@@ -1,6 +1,7 @@
-import { Activity, ShieldAlert, Zap } from "lucide-react";
+import { ShieldAlert, Zap } from "lucide-react";
 import type { Metrics } from "../lib/useVerdicts";
 import { severity } from "../lib/severity";
+import { Sparkline } from "./Sparkline";
 
 function Chip({
   label,
@@ -51,17 +52,78 @@ function BandCount({ band, n }: { band: "HIGH" | "GRAY" | "LOW"; n: number }) {
   );
 }
 
+// Throughput is the hero stat: a big events/sec number with a live pulse dot and
+// a 60s sparkline, so the demo visibly races.
+function ThroughputHero({ m }: { m: Metrics }) {
+  const live = m.connected && m.eventsPerSec > 0;
+  return (
+    <div
+      className="flex items-center gap-12 rounded-8 px-16"
+      style={{
+        background: "var(--surface-card)",
+        border: "1px solid var(--border-subtle)",
+        height: "36px",
+      }}
+    >
+      <span
+        className={live ? "uw-pulse-dot" : ""}
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: "var(--radius-circle)",
+          background: live ? "var(--action-primary)" : "var(--text-tertiary)",
+        }}
+      />
+      <div className="flex items-baseline gap-4">
+        <span
+          className="font-mono"
+          style={{ color: "var(--action-primary)", fontSize: "22px", fontWeight: 700, lineHeight: 1 }}
+        >
+          {m.eventsPerSec.toFixed(1)}
+        </span>
+        <span className="font-mono" style={{ color: "var(--text-secondary)", fontSize: "12px" }}>
+          /s
+        </span>
+      </div>
+      <span className="uw-body-sm" style={{ color: "var(--text-tertiary)" }}>
+        events
+      </span>
+      <Sparkline values={m.epsHistory} />
+    </div>
+  );
+}
+
+// Scored total — a running counter that visibly climbs as commands flow.
+function ScoredTotal({ n }: { n: number }) {
+  return (
+    <div
+      className="flex items-center gap-8 rounded-8 px-12"
+      style={{
+        background: "var(--surface-card)",
+        border: "1px solid var(--border-subtle)",
+        height: "36px",
+      }}
+    >
+      <span className="uw-body-sm" style={{ color: "var(--text-secondary)" }}>
+        scored
+      </span>
+      <span
+        className="font-mono tabular-nums"
+        style={{ color: "var(--text-primary)", fontSize: "16px", fontWeight: 700 }}
+      >
+        {n.toLocaleString()}
+      </span>
+    </div>
+  );
+}
+
 // MetricBar is the top row of live KPI chips. latencyMs is optional (model
 // latency only appears when a producer reports it).
 export function MetricBar({ m, latencyMs }: { m: Metrics; latencyMs?: number }) {
   return (
     <div className="flex items-center gap-12 flex-wrap">
-      <Chip
-        label="events/sec"
-        value={m.eventsPerSec.toFixed(1)}
-        icon={<Activity size={15} />}
-        accent="var(--action-primary)"
-      />
+      <ThroughputHero m={m} />
+      <ScoredTotal n={m.total} />
       <Chip
         label="flagged"
         value={`${m.flaggedPct.toFixed(0)}%`}
@@ -74,7 +136,6 @@ export function MetricBar({ m, latencyMs }: { m: Metrics; latencyMs?: number }) 
       {latencyMs !== undefined && (
         <Chip label="model latency" value={`${latencyMs} ms`} icon={<Zap size={15} />} />
       )}
-      <Chip label="total" value={String(m.total)} />
     </div>
   );
 }
