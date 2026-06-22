@@ -1,4 +1,6 @@
 /bin/
+# Compiled server binary (built from source; never commit the artifact)
+/server
 
 # Never commit secrets — the Slack webhook URL is passed via $SLACK_WEBHOOK_URL
 # or --slack-webhook, not stored in the repo. Ignore common local secret files.

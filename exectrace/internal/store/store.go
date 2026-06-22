@@ -3,8 +3,8 @@
 // modernc.org/sqlite driver (no cgo) so it builds without a C toolchain, here
 // and in Docker later.
 //
-// The DB row mirrors types.Verdict exactly — mitre is stored as a JSON string
-// in one column. types.Verdict itself is unchanged.
+// The DB row mirrors the unified types.Verdict — mitre and risk_indicators are
+// each stored as a JSON-array string in one column.
 package store
 
 import (
@@ -21,17 +21,17 @@ import (
 
 const schema = `
 CREATE TABLE IF NOT EXISTS verdicts (
-	id      INTEGER PRIMARY KEY AUTOINCREMENT,
-	ts      TEXT    NOT NULL,
-	pid     INTEGER NOT NULL,
-	command TEXT    NOT NULL,
-	score   REAL    NOT NULL,
-	band    TEXT    NOT NULL,
-	verdict TEXT    NOT NULL,
-	reason  TEXT    NOT NULL,
-	mitre   TEXT    NOT NULL,  -- JSON array
-	tactic  TEXT    NOT NULL,
-	source  TEXT    NOT NULL
+	id              INTEGER PRIMARY KEY AUTOINCREMENT,
+	ts              TEXT NOT NULL,
+	executable      TEXT NOT NULL,
+	command         TEXT NOT NULL,
+	risk_score      REAL NOT NULL,
+	band            TEXT NOT NULL,
+	verdict         TEXT NOT NULL,
+	reason          TEXT NOT NULL,
+	mitre           TEXT NOT NULL,  -- JSON array
+	risk_indicators TEXT NOT NULL,  -- JSON array
+	source          TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_verdicts_ts   ON verdicts(ts);
 CREATE INDEX IF NOT EXISTS idx_verdicts_band ON verdicts(band);
@@ -61,17 +61,22 @@ func Open(path string) (*Store, error) {
 // Close releases the underlying database handle.
 func (s *Store) Close() error { return s.db.Close() }
 
-// Insert persists one verdict. mitre is serialized to a JSON array string.
+// Insert persists one verdict. mitre and risk_indicators are each serialized to
+// a JSON array string.
 func (s *Store) Insert(v types.Verdict) error {
-	mitre, err := json.Marshal(normMitre(v.Mitre))
+	mitre, err := json.Marshal(normSlice(v.Mitre))
+	if err != nil {
+		return err
+	}
+	indicators, err := json.Marshal(normSlice(v.RiskIndicators))
 	if err != nil {
 		return err
 	}
 	_, err = s.db.Exec(
-		`INSERT INTO verdicts (ts, pid, command, score, band, verdict, reason, mitre, tactic, source)
+		`INSERT INTO verdicts (ts, executable, command, risk_score, band, verdict, reason, mitre, risk_indicators, source)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		v.Ts.UTC().Format(time.RFC3339Nano), v.Pid, v.Command, v.Score, v.Band,
-		v.Verdict, v.Reason, string(mitre), v.Tactic, v.Source,
+		v.Ts.UTC().Format(time.RFC3339Nano), v.Executable, v.Command, v.RiskScore, v.Band,
+		v.Verdict, v.Reason, string(mitre), string(indicators), v.Source,
 	)
 	if err != nil {
 		return fmt.Errorf("insert verdict: %w", err)
@@ -96,7 +101,7 @@ func (s *Store) Query(f Filter) ([]types.Verdict, error) {
 		limit = 1000
 	}
 
-	q := `SELECT ts, pid, command, score, band, verdict, reason, mitre, tactic, source FROM verdicts`
+	q := `SELECT ts, executable, command, risk_score, band, verdict, reason, mitre, risk_indicators, source FROM verdicts`
 	var where []string
 	var args []any
 	if b := strings.ToUpper(strings.TrimSpace(f.Band)); b != "" {
@@ -125,14 +130,18 @@ func (s *Store) Query(f Filter) ([]types.Verdict, error) {
 			v        types.Verdict
 			tsStr    string
 			mitreStr string
+			indStr   string
 		)
-		if err := rows.Scan(&tsStr, &v.Pid, &v.Command, &v.Score, &v.Band,
-			&v.Verdict, &v.Reason, &mitreStr, &v.Tactic, &v.Source); err != nil {
+		if err := rows.Scan(&tsStr, &v.Executable, &v.Command, &v.RiskScore, &v.Band,
+			&v.Verdict, &v.Reason, &mitreStr, &indStr, &v.Source); err != nil {
 			return nil, err
 		}
 		v.Ts, _ = time.Parse(time.RFC3339Nano, tsStr)
 		if mitreStr != "" {
 			_ = json.Unmarshal([]byte(mitreStr), &v.Mitre)
+		}
+		if indStr != "" {
+			_ = json.Unmarshal([]byte(indStr), &v.RiskIndicators)
 		}
 		out = append(out, v)
 	}
@@ -146,9 +155,9 @@ func (s *Store) Count() (int, error) {
 	return n, err
 }
 
-// normMitre maps a nil slice to an empty slice so the stored JSON is "[]" not
+// normSlice maps a nil slice to an empty slice so the stored JSON is "[]" not
 // "null" — keeps the column shape consistent.
-func normMitre(m []string) []string {
+func normSlice(m []string) []string {
 	if m == nil {
 		return []string{}
 	}

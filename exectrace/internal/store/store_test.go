@@ -21,8 +21,8 @@ func newTestStore(t *testing.T) *Store {
 
 func mk(cmd, band string, ts time.Time, mitre ...string) types.Verdict {
 	return types.Verdict{
-		Command: cmd, Band: band, Score: 0.5, Verdict: "x",
-		Reason: "r", Mitre: mitre, Tactic: "t", Source: "rule", Ts: ts,
+		Executable: "/bin/x", Command: cmd, Band: band, RiskScore: 0.5, Verdict: "x",
+		Reason: "r", Mitre: mitre, RiskIndicators: []string{"i"}, Source: "rule", Ts: ts,
 	}
 }
 

