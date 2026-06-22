@@ -25,16 +25,25 @@ type seqVerdict struct {
 // (same argvKey) are scored once; concurrent or later duplicates reuse the
 // cached result. This keeps only DISTINCT commands hitting the model.
 type pool struct {
-	scorer   Scorer
-	cache    *Cache
-	mu       sync.Mutex
-	inflight map[string]chan struct{}
-	scored   int64 // distinct commands sent to the scorer
-	hits     int64 // duplicates served from cache
+	scorer      Scorer
+	cache       *Cache
+	mu          sync.Mutex
+	inflight    map[string]chan struct{}
+	scored      int64 // distinct commands sent to the scorer (LLM)
+	hits        int64 // duplicates served from cache
+	prefiltered int64 // resolved by the cheap gate, never touched the LLM
 }
 
 // resolve returns the score for an event and the source that produced it.
 func (p *pool) resolve(ctx context.Context, ev ExecEvent) (ScoreResult, string) {
+	// Cheap deterministic gate first: clearly-benign system binaries never reach
+	// the LLM (the capacity win). Prefilter results are deterministic, so they
+	// are not cached.
+	if r, ok := prefilter(ev); ok {
+		atomic.AddInt64(&p.prefiltered, 1)
+		return r, "prefilter"
+	}
+
 	key := argvKey(ev.Executable, ev.Argv)
 	for {
 		p.mu.Lock()
@@ -79,7 +88,7 @@ func main() {
 	mock := flag.Bool("mock", false, "use the keyword heuristic instead of a model")
 	model := flag.String("model", "llama3.2:1b", "Ollama model name (ignored with --mock)")
 	workers := flag.Int("workers", 1, "number of concurrent scoring workers")
-	cacheSize := flag.Int("cache-size", 4096, "max distinct commands to cache")
+	cacheSize := flag.Int("cache-size", 16384, "max distinct commands to cache")
 	bufSize := flag.Int("buffer", 100000, "max pending commands buffered before the LLM (drop-oldest when full)")
 	flag.Parse()
 
@@ -197,6 +206,6 @@ func main() {
 	close(results)
 	<-done
 
-	fmt.Fprintf(os.Stderr, "read=%d exec_scored=%d cache_hits=%d non_exec_skipped=%d empty_cmd_skipped=%d buffered_dropped=%d\n",
-		read, atomic.LoadInt64(&p.scored), atomic.LoadInt64(&p.hits), nonExec, emptyCmd, q.Dropped())
+	fmt.Fprintf(os.Stderr, "read=%d exec_scored=%d prefiltered=%d cache_hits=%d non_exec_skipped=%d empty_cmd_skipped=%d buffered_dropped=%d\n",
+		read, atomic.LoadInt64(&p.scored), atomic.LoadInt64(&p.prefiltered), atomic.LoadInt64(&p.hits), nonExec, emptyCmd, q.Dropped())
 }
