@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         llvm-18-dev \
         libclang-18-dev \
         libelf-dev \
+        libbpf-dev \
         liblzma-dev \
         zlib1g-dev \
         linux-tools-generic \
@@ -20,8 +21,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         kmod \
     && rm -rf /var/lib/apt/lists/* \
     # bpf2go calls `clang` and `llc` by name
-    && ln -sf /usr/bin/clang-18 /usr/local/bin/clang \
-    && ln -sf /usr/bin/llc-18   /usr/local/bin/llc
+    && ln -sf /usr/bin/clang-18      /usr/local/bin/clang \
+    && ln -sf /usr/bin/llc-18        /usr/local/bin/llc \
+    && ln -sf /usr/bin/llvm-strip-18 /usr/local/bin/llvm-strip
 
 # ── Go ─────────────────────────────────────────────────────────────────────────
 ARG GO_VERSION=1.24.4

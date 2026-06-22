@@ -7,11 +7,12 @@ GO_SRCS    := $(shell find cmd internal -name '*.go' ! -name '*_bpfeb.go')
 
 all: build
 
-# Generate vmlinux.h from the running kernel's BTF.
+# Generate vmlinux.h and copy libbpf headers (requires libbpf-dev installed).
 # Must run on the target Linux host (not macOS).
 vmlinux:
 	mkdir -p bpf/headers
 	bpftool btf dump file /sys/kernel/btf/vmlinux format c > $(VMLINUX)
+	cp -r /usr/include/bpf bpf/headers/bpf
 
 # Compile BPF C → Go bindings via bpf2go.
 # Requires: clang, llvm, libelf-dev, vmlinux.h.
