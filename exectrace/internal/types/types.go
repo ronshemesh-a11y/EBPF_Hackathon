@@ -8,16 +8,26 @@ package types
 import "time"
 
 // Event is one observed process execution. The same struct is produced by the
-// live eBPF tracer (P1) and by the CSV replay injector — downstream code must
-// not be able to tell the difference.
+// live eBPF tracer (P1, ExecGuard) and by the CSV replay injector — downstream
+// code must not be able to tell the difference.
+//
+// The JSON tags match ExecGuard's actual execve wire format, which emits one
+// object per line carrying just the resolved binary and its argv:
+//
+//	{"executable":"/usr/bin/curl","argv":["curl","-fsSL","http://..."]}
+//
+// The remaining fields (Ts/Pid/Ppid/Uid/Comm) are populated by replay and by
+// any richer future source; they zero-value cleanly when a minimal P1 line
+// omits them, so `execguard | report` parses without changes.
 type Event struct {
-	Ts   time.Time `json:"ts"`
-	Type string    `json:"type"` // "exec" for now
-	Pid  int       `json:"pid"`
-	Ppid int       `json:"ppid"`
-	Uid  int       `json:"uid"`
-	Comm string    `json:"comm"`
-	Argv []string  `json:"argv"`
+	Executable string    `json:"executable"` // resolved binary path (P1)
+	Argv       []string  `json:"argv"`       // command + args as typed
+	Ts         time.Time `json:"ts,omitempty"`
+	Type       string    `json:"type,omitempty"` // "exec" for now
+	Pid        int       `json:"pid,omitempty"`
+	Ppid       int       `json:"ppid,omitempty"`
+	Uid        int       `json:"uid,omitempty"`
+	Comm       string    `json:"comm,omitempty"`
 }
 
 // Verdict is the scorer's judgement of a single Event. This struct is the
