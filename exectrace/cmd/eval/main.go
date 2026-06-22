@@ -25,6 +25,7 @@ import (
 	"exectrace/internal/eval"
 	"exectrace/internal/mockp2"
 	"exectrace/internal/source"
+	"exectrace/internal/types"
 )
 
 func main() {
@@ -66,7 +67,9 @@ func main() {
 		labelOf = func(_ int, cmd string) string { return tset.Label(cmd) }
 	}
 
-	scorer := mockp2.New(mockp2.Bands{Gray: *grayCut, High: *highCut})
+	// Seam with P2: held as the interface, so swapping in the real LLM scorer
+	// is this one construction line.
+	var scorer types.Scorer = mockp2.New(mockp2.Bands{Gray: *grayCut, High: *highCut})
 	var es eval.Scorer
 
 	t0 := time.Now()

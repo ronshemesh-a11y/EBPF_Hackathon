@@ -69,6 +69,7 @@ fn[], ts}` for before/after comparison.
 | [internal/report](internal/report/report.go) + [cmd/report](cmd/report/main.go) | Consume `Verdict`s, print banded lines, hide below `--threshold`, summarize on exit. |
 | [internal/eval](internal/eval/eval.go) + [cmd/eval](cmd/eval/main.go) | Scorecard: recall/precision/F1, per-verdict/per-band, FP+missed lists, JSON persistence. Labels from the `label` column or a `--truth` `.txt`. |
 | [cmd/compare](cmd/compare/main.go) | Diffs two persisted runs: recall/precision/F1 deltas + newly caught / newly missed / FPs added/removed. |
+| [internal/sink](internal/sink/slack.go) | Slack incoming-webhook notifier — non-blocking, no-op when unconfigured. |
 
 ## Design rules honored
 
@@ -83,11 +84,38 @@ fn[], ts}` for before/after comparison.
 
 ## Swapping in real P2
 
-`mockp2` is marked TEMP. Replacing it touches **one line** in
-[cmd/report/main.go](cmd/report/main.go) and [cmd/eval/main.go](cmd/eval/main.go) —
-the `scorer := mockp2.New(...)` call. As long as the real scorer returns
-`types.Verdict` with the same fields, the reporter, eval, replay, and types
-packages are unchanged.
+The scorer is the `types.Scorer` interface (`Score(Event) Verdict`).
+`cmd/report` and `cmd/eval` hold it as that interface:
+
+```go
+var scorer types.Scorer = mockp2.New(mockp2.Bands{Gray: *grayCut, High: *highCut})
+```
+
+`mockp2` is TEMP and proves it satisfies the seam with a compile-time assertion
+(`var _ types.Scorer = (*Scorer)(nil)`). When P2's real LLM scorer implements
+the same one method, swapping it in is **this one construction line in each
+command** — reporter, eval, scorecard, compare, replay, and Slack are untouched.
+
+## Slack alerts
+
+High-severity verdicts can post to a Slack incoming webhook. It is best-effort
+and off the hot path (buffered channel + one sender goroutine; a slow webhook
+never stalls the stream; full buffer → drop and count).
+
+```bash
+# Flag wins over env; neither set → silent no-op (default behavior unchanged):
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/XXX \
+  bin/replay --file testdata/sample.csv | bin/report --slack-threshold HIGH
+
+bin/report --slack-webhook https://hooks.slack.com/services/XXX --slack-threshold HIGH
+```
+
+- `--slack-webhook` / `$SLACK_WEBHOOK_URL` — the URL is **never** hardcoded or
+  committed (see `.gitignore`).
+- `--slack-threshold` (default `HIGH`) — only bands at/above this notify, using
+  the same `types.BandRank` ordering as the reporter's display threshold.
+- Fires independently of `--json`. Terminal output is unchanged; a
+  `slack: sent=N failed=N dropped=N` line is added to the summary when enabled.
 
 ## Corpus format
 

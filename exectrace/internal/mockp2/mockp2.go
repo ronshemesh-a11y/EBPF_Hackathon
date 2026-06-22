@@ -115,6 +115,11 @@ type Scorer struct {
 	bands Bands
 }
 
+// Compile-time proof that *Scorer satisfies the integration seam. The real P2
+// (LLM) scorer implements the same interface, so the pipeline swaps with one
+// construction line and nothing else changes.
+var _ types.Scorer = (*Scorer)(nil)
+
 // New returns a Scorer using the given band cutoffs.
 func New(b Bands) *Scorer { return &Scorer{bands: b} }
 

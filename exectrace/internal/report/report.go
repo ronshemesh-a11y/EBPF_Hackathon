@@ -12,13 +12,9 @@ import (
 	"exectrace/internal/types"
 )
 
-// bandRank orders bands for thresholding. A verdict is shown when its band rank
-// is >= the threshold band's rank.
-var bandRank = map[string]int{
-	types.BandLow:  0,
-	types.BandGray: 1,
-	types.BandHigh: 2,
-}
+// Band thresholding uses the shared ordering in package types (so the reporter
+// and the Slack sink can't drift). A verdict is shown when its band rank is >=
+// the display threshold's rank.
 
 // ANSI colors, disabled when not a TTY / NO_COLOR set.
 type palette struct{ low, gray, high, dim, reset string }
@@ -67,7 +63,7 @@ type Summary struct {
 // all). color enables ANSI colors. start anchors elapsed time.
 func New(w io.Writer, threshold string, color bool, start time.Time) *Reporter {
 	threshold = strings.ToUpper(strings.TrimSpace(threshold))
-	if _, ok := bandRank[threshold]; !ok {
+	if !types.ValidBand(threshold) {
 		threshold = types.BandLow
 	}
 	return &Reporter{
@@ -83,7 +79,7 @@ func New(w io.Writer, threshold string, color bool, start time.Time) *Reporter {
 
 // shown reports whether a band meets the display threshold.
 func (r *Reporter) shown(band string) bool {
-	return bandRank[band] >= bandRank[r.threshold]
+	return types.BandAtLeast(band, r.threshold)
 }
 
 // Handle records a Verdict in the summary and prints it if it meets the

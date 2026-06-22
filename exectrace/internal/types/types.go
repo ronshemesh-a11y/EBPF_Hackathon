@@ -43,3 +43,33 @@ const (
 	BandGray = "GRAY"
 	BandHigh = "HIGH"
 )
+
+// bandRank orders bands for thresholding. Shared by the reporter (display
+// threshold) and the Slack sink (notify threshold) so they can't drift.
+var bandRank = map[string]int{
+	BandLow:  0,
+	BandGray: 1,
+	BandHigh: 2,
+}
+
+// BandRank returns the ordinal of a band (LOW=0, GRAY=1, HIGH=2); unknown
+// bands rank as LOW.
+func BandRank(band string) int { return bandRank[band] }
+
+// ValidBand reports whether s is a recognized band name.
+func ValidBand(s string) bool {
+	_, ok := bandRank[s]
+	return ok
+}
+
+// BandAtLeast reports whether band meets or exceeds threshold in rank.
+func BandAtLeast(band, threshold string) bool {
+	return bandRank[band] >= bandRank[threshold]
+}
+
+// Scorer turns an Event into a Verdict. mockp2 implements it today; the real
+// P2 (LLM) stage will implement the same single method, so the pipeline swaps
+// with one line and nothing else changes.
+type Scorer interface {
+	Score(Event) Verdict
+}

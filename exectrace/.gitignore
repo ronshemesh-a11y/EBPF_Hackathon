@@ -1,1 +1,9 @@
 /bin/
+
+# Never commit secrets — the Slack webhook URL is passed via $SLACK_WEBHOOK_URL
+# or --slack-webhook, not stored in the repo. Ignore common local secret files.
+.env
+.env.*
+*.local
+results.json
+run_*.json
