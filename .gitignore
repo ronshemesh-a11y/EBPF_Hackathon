@@ -1,0 +1,11 @@
+# macOS
+.DS_Store
+
+# Go build output
+/bin/
+*.o
+
+# Editor/IDE
+*.swp
+.idea/
+.vscode/

@@ -1,0 +1,21 @@
+services:
+  bcc:
+    build: .
+    image: bcc-ubuntu2404
+    container_name: bcc
+    privileged: true
+    pid: host
+    network_mode: host
+    # BCC compiles/loads BPF programs at runtime and needs access to the
+    # host kernel's headers, debugfs and BTF info.
+    volumes:
+      - /lib/modules:/lib/modules:ro
+      - /usr/src:/usr/src:ro
+      - /sys/kernel/debug:/sys/kernel/debug
+      - /sys/fs/bpf:/sys/fs/bpf
+      - ./:/work
+    working_dir: /work
+    # Keep the container alive so you can `docker compose exec bcc bash`.
+    command: sleep infinity
+    stdin_open: true
+    tty: true
