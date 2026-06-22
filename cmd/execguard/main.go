@@ -10,11 +10,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/cilium/ebpf/rlimit"
-	"github.com/ronshemesh-a11y/EBPF_Hackathon/internal/enrich"
 )
 
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -type event bpf ../../bpf/execguard.bpf.c -- -I../../bpf/headers -O2 -g -Wall
@@ -42,7 +40,6 @@ func main() {
 	}
 	defer rd.Close()
 
-	boot := enrich.BootWall()
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetEscapeHTML(false)
 
@@ -69,29 +66,8 @@ func main() {
 			continue
 		}
 
-		dropped := readDropped(objs.Dropped)
-		evt := decodeEvent(&raw, boot, dropped)
-
-		if err := enc.Encode(evt); err != nil {
+		if err := enc.Encode(decodeEvent(&raw)); err != nil {
 			log.Printf("json encode: %v", err)
 		}
 	}
-}
-
-// readDropped sums the per-CPU dropped counter map (key=0) across all CPUs.
-func readDropped(m *ebpf.Map) uint64 {
-	nCPU, err := ebpf.PossibleCPU()
-	if err != nil {
-		return 0
-	}
-	values := make([]uint64, nCPU)
-	key := uint32(0)
-	if err := m.Lookup(&key, &values); err != nil {
-		return 0
-	}
-	var total uint64
-	for _, v := range values {
-		total += v
-	}
-	return total
 }

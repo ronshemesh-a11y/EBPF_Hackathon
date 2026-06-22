@@ -1,43 +1,18 @@
 package main
 
 import (
-	"time"
 	"unicode/utf8"
 
-	"github.com/ronshemesh-a11y/EBPF_Hackathon/internal/enrich"
 	"github.com/ronshemesh-a11y/EBPF_Hackathon/internal/model"
 )
 
-// decodeEvent converts a raw bpfEvent (bpf2go-generated struct) to a model.Event
-// ready for JSON marshalling.
-func decodeEvent(raw *bpfEvent, boot time.Time, droppedSoFar uint64) model.Event {
-	e := model.Event{
-		SchemaVersion: model.SchemaVersion,
-		EventType:     "execve",
-		KtimeNs:       raw.KtimeNs,
-		Timestamp:     enrich.KtimeToWall(boot, raw.KtimeNs).UTC().Format(time.RFC3339Nano),
-		PID:           raw.Pid,
-		TID:           raw.Tid,
-		UID:           raw.Uid,
-		GID:           raw.Gid,
-		Comm:          sanitize(int8SliceToStr(raw.Comm[:])),
-		DroppedSoFar:  droppedSoFar,
+// decodeEvent converts a raw bpfEvent (bpf2go-generated) to the minimal
+// command/argv model.Event.
+func decodeEvent(raw *bpfEvent) model.Event {
+	return model.Event{
+		Executable: sanitize(int8SliceToStr(raw.Filename[:])),
+		Argv:       decodeArgv(raw.ArgvBuf[:], raw.ArgsCount),
 	}
-
-	e.Executable = sanitize(int8SliceToStr(raw.Filename[:]))
-	e.Argv = decodeArgv(raw.ArgvBuf[:], raw.ArgsCount)
-	e.ArgvTruncated = raw.ArgvTruncated != 0
-	e.ArgClipped = raw.ArgClipped != 0
-	if v := int8SliceToStr(raw.LdPreload[:]); v != "" {
-		s := sanitize(v)
-		e.LDPreload = &s
-	}
-	if v := int8SliceToStr(raw.LdLibraryPath[:]); v != "" {
-		s := sanitize(v)
-		e.LDLibraryPath = &s
-	}
-
-	return e
 }
 
 // int8SliceToStr converts a null-terminated [N]int8 (bpf2go convention for char[]) to a Go string.
