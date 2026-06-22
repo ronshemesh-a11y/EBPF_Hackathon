@@ -23,9 +23,9 @@ const (
 	evtFinitModule = 10
 )
 
-// decodeEvent converts a raw BpfEvent (bpf2go-generated struct) to a model.Event
+// decodeEvent converts a raw bpfEvent (bpf2go-generated struct) to a model.Event
 // ready for JSON marshalling.  Returns (event, true) to emit, or (_, false) to drop.
-func decodeEvent(raw *BpfEvent, boot time.Time, droppedSoFar uint64) (model.Event, bool) {
+func decodeEvent(raw *bpfEvent, boot time.Time, droppedSoFar uint64) (model.Event, bool) {
 	e := model.Event{
 		SchemaVersion: model.SchemaVersion,
 		KtimeNs:       raw.KtimeNs,

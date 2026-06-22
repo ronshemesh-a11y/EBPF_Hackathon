@@ -63,9 +63,9 @@ func main() {
 			continue
 		}
 
-		var raw BpfEvent
+		var raw bpfEvent
 		if err := binary.Read(bytes.NewReader(rec.RawSample), binary.NativeEndian, &raw); err != nil {
-			log.Printf("decode BpfEvent: %v", err)
+			log.Printf("decode bpfEvent: %v", err)
 			continue
 		}
 
