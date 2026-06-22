@@ -61,7 +61,7 @@ export default function App() {
         >
           <LiveFeed items={items} selectedId={selectedId} onSelect={select} />
           <AlertList items={items} selectedId={selectedId} onSelect={select} />
-          <DetailPanel selected={selected} items={items} />
+          <DetailPanel selected={selected} />
         </main>
       </div>
     </div>

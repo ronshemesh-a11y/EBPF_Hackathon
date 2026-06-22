@@ -1,5 +1,4 @@
-import { useMemo } from "react";
-import { ChevronRight, GitBranch, Info } from "lucide-react";
+import { Info } from "lucide-react";
 import type { FeedItem } from "../lib/types";
 import { severity } from "../lib/severity";
 import { SeverityBadge, MitreTags } from "./Badge";
@@ -17,47 +16,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-// buildLineage reconstructs the pid→ppid ancestor chain for the selected item
-// from everything we've observed, ending at the selected process. Best-effort:
-// ancestors only appear if their exec was also seen (eBPF emits ppid; the CSV
-// replay does not, so the chain is just the process itself there).
-function buildLineage(sel: FeedItem, items: FeedItem[]): FeedItem[] {
-  const byPid = new Map<number, FeedItem>();
-  // Prefer the most recent exec per pid.
-  for (const it of items) {
-    if (!byPid.has(it.pid)) byPid.set(it.pid, it);
-  }
-  const chain: FeedItem[] = [sel];
-  const seen = new Set<number>([sel.pid]);
-  let cur = sel;
-  while (cur.ppid && cur.ppid !== 0 && !seen.has(cur.ppid)) {
-    const parent = byPid.get(cur.ppid);
-    if (!parent) break;
-    chain.unshift(parent);
-    seen.add(parent.pid);
-    cur = parent;
-  }
-  return chain;
-}
-
-// procName extracts a short label for a lineage node (argv[0]-ish from command).
-function procName(it: FeedItem): string {
-  const first = (it.command || "").trim().split(/\s+/)[0] || "?";
-  return first.split("/").pop() || first;
-}
-
-export function DetailPanel({
-  selected,
-  items,
-}: {
-  selected: FeedItem | null;
-  items: FeedItem[];
-}) {
-  const lineage = useMemo(
-    () => (selected ? buildLineage(selected, items) : []),
-    [selected, items],
-  );
-
+export function DetailPanel({ selected }: { selected: FeedItem | null }) {
   return (
     <Panel title="Detail">
       {!selected ? (
@@ -73,7 +32,7 @@ export function DetailPanel({
               className="ml-auto font-mono"
               style={{ color: severity(selected.band).fg, fontSize: "16px", fontWeight: 700 }}
             >
-              {Math.round(selected.score * 100)}%
+              {Math.round(selected.risk_score * 100)}%
             </span>
           </div>
 
@@ -103,48 +62,33 @@ export function DetailPanel({
           {selected.mitre && selected.mitre.length > 0 && (
             <Field label="MITRE ATT&CK">
               <MitreTags mitre={selected.mitre} />
-              {selected.tactic && (
-                <div style={{ color: "var(--text-secondary)", fontSize: "12px", marginTop: "6px" }}>
-                  {selected.tactic}
-                </div>
-              )}
             </Field>
           )}
 
-          <Field label="Process tree">
-            <div className="flex flex-wrap items-center gap-4">
-              <GitBranch size={15} style={{ color: "var(--text-tertiary)" }} />
-              {lineage.map((node, i) => (
-                <span key={node._id} className="flex items-center gap-4">
-                  {i > 0 && <ChevronRight size={13} style={{ color: "var(--text-tertiary)" }} />}
+          {selected.risk_indicators && selected.risk_indicators.length > 0 && (
+            <Field label="Risk indicators">
+              <div className="flex flex-wrap gap-4">
+                {selected.risk_indicators.map((ind) => (
                   <span
+                    key={ind}
                     className="rounded-4 px-4 font-mono"
                     style={{
                       fontSize: "12px",
-                      background:
-                        node._id === selected._id ? severity(selected.band).bg : "var(--bg-secondary)",
-                      color:
-                        node._id === selected._id ? severity(selected.band).fg : "var(--text-secondary)",
+                      background: "var(--bg-secondary)",
+                      color: "var(--text-secondary)",
                       border: "1px solid var(--border-subtle)",
                     }}
-                    title={`pid ${node.pid}`}
                   >
-                    {procName(node)}
+                    {ind}
                   </span>
-                </span>
-              ))}
-            </div>
-            {lineage.length === 1 && (
-              <div style={{ color: "var(--text-tertiary)", fontSize: "11px", marginTop: "6px" }}>
-                no parent lineage available for this event
+                ))}
               </div>
-            )}
-          </Field>
+            </Field>
+          )}
 
           <Field label="Metadata">
             <div className="grid" style={{ gridTemplateColumns: "auto 1fr", gap: "4px 12px", fontSize: "12px" }}>
-              <Meta k="pid" v={String(selected.pid)} />
-              {selected.ppid ? <Meta k="ppid" v={String(selected.ppid)} /> : null}
+              <Meta k="executable" v={selected.executable || "—"} />
               <Meta k="source" v={selected.source || "—"} />
               <Meta k="time" v={fmtTime(selected.ts)} />
             </div>

@@ -52,7 +52,7 @@ export function AlertList({
                   className="ml-auto font-mono"
                   style={{ color: s.fg, fontSize: "12px", fontWeight: 500 }}
                 >
-                  {Math.round(it.score * 100)}%
+                  {Math.round(it.risk_score * 100)}%
                 </span>
               </div>
               <div

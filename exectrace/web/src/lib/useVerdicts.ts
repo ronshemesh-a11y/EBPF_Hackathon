@@ -20,7 +20,7 @@ export interface VerdictsState {
 let seq = 0;
 function tag(v: Verdict): FeedItem {
   seq += 1;
-  return { ...v, _id: `${v.pid}-${v.ts}-${seq}`, _seq: seq };
+  return { ...v, _id: `${seq}-${v.ts}`, _seq: seq };
 }
 
 function tsMillis(v: { ts: string }): number {

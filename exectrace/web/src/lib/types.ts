@@ -1,21 +1,21 @@
-// Verdict mirrors Go's types.Verdict JSON exactly — the API contract. The
-// frontend only renders it; it never reshapes the contract.
+// Verdict mirrors Go's unified types.Verdict JSON exactly — the API contract.
+// The frontend only renders it; it never reshapes the contract. The minimal P1
+// sensor carries no per-process identity, so there is no pid/ppid here.
 export interface Verdict {
-  pid: number;
-  ppid?: number; // present on richer (eBPF) events; used for the process tree
+  executable: string;
   command: string;
-  score: number;
+  risk_score: number;
   band: string; // LOW | GRAY | HIGH
-  verdict: string; // benign | suspicious | malicious | unknown | error
+  verdict: string; // benign | suspicious | malicious | error
   reason: string;
   mitre: string[] | null;
-  tactic: string;
+  risk_indicators: string[] | null;
   source: string; // rule | llm | cache | error
   ts: string; // RFC3339
 }
 
 // A verdict tagged with a stable client-side id + arrival order, so React keys
-// and selection survive re-renders even when pids repeat.
+// and selection survive re-renders.
 export interface FeedItem extends Verdict {
   _id: string;
   _seq: number;
