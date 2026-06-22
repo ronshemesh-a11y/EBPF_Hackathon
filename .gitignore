@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# Go build output
+/bin/
+
+# BPF compiled objects (generated, but NOT bpf_bpfel.go / bpf_bpfeb.go — those are committed)
+bpf/headers/vmlinux.h
+
+# Editor/IDE
+*.swp
+.idea/
+.vscode/

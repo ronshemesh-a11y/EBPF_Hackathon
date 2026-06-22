@@ -1,0 +1,19 @@
+services:
+  execguard:
+    build: .
+    image: execguard-dev
+    container_name: execguard
+    privileged: true       # required to load BPF programs
+    pid: host              # share host PID namespace (needed for /proc/<pid>/ enrichment)
+    network_mode: host
+    volumes:
+      - /lib/modules:/lib/modules:ro
+      - /usr/src:/usr/src:ro
+      - /sys/kernel/debug:/sys/kernel/debug
+      - /sys/fs/bpf:/sys/fs/bpf
+      - /sys/kernel/btf:/sys/kernel/btf:ro   # CO-RE vmlinux.h source
+      - .:/work                              # entire repo
+    working_dir: /work
+    command: sleep infinity
+    stdin_open: true
+    tty: true

