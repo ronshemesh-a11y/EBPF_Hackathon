@@ -10,8 +10,10 @@ import (
 // command/argv model.Event.
 func decodeEvent(raw *bpfEvent) model.Event {
 	return model.Event{
-		Executable: sanitize(int8SliceToStr(raw.Filename[:])),
-		Argv:       decodeArgv(raw.ArgvBuf[:], raw.ArgsCount),
+		SchemaVersion: model.SchemaVersion,
+		EventType:     "execve",
+		Executable:    sanitize(int8SliceToStr(raw.Filename[:])),
+		Argv:          decodeArgv(raw.ArgvBuf[:], raw.ArgsCount),
 	}
 }
 
