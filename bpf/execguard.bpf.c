@@ -8,6 +8,12 @@
 
 char LICENSE[] SEC("license") = "GPL";
 
+/*
+ * Force `struct event` into the BTF so bpf2go's `-type event` can find it.
+ * Without a map or global referencing the type, clang omits it from BTF.
+ */
+const struct event *unused_event __attribute__((unused));
+
 /* ── Maps ────────────────────────────────────────────────────────────────── */
 
 struct {
