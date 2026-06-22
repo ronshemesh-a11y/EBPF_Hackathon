@@ -20,8 +20,10 @@ generate:
 	cd cmd/execguard && go generate
 
 # Build the Go binary (requires generated bpf_bpfel.go).
+# -buildvcs=false: the repo is bind-mounted and owned by a different uid in the
+# container, which trips git's "dubious ownership" check during VCS stamping.
 build: $(GO_SRCS)
-	go build -o $(BINARY) ./cmd/execguard
+	go build -buildvcs=false -o $(BINARY) ./cmd/execguard
 
 # Run as root (eBPF requires CAP_BPF / CAP_SYS_ADMIN).
 run: build
