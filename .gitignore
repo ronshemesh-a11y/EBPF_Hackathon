@@ -3,7 +3,9 @@
 
 # Go build output
 /bin/
-*.o
+
+# BPF compiled objects (generated, but NOT bpf_bpfel.go / bpf_bpfeb.go — those are committed)
+bpf/headers/vmlinux.h
 
 # Editor/IDE
 *.swp
