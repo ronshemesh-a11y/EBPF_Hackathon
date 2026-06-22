@@ -1,0 +1,10 @@
+/* =========================================================
+   Upwind Design System — single entry.
+   Chains fonts → colors → typography → spacing. Import this
+   once at the app entry. @import paths are relative to this
+   file, so keep tokens/ (and tokens/fonts/*.otf) beside it.
+   ========================================================= */
+@import "./tokens/fonts.css";
+@import "./tokens/colors.css";
+@import "./tokens/typography.css";
+@import "./tokens/spacing.css";

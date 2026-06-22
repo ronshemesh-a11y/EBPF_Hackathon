@@ -7,3 +7,9 @@
 *.local
 results.json
 run_*.json
+
+# SQLite verdict history (created at runtime by cmd/server)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

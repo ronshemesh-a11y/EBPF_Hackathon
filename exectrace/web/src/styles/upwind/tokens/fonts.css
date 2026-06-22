@@ -1,0 +1,28 @@
+/* =========================================================
+   Upwind — webfonts
+   Upwind Sans (3 weights) + DM Mono (Google Fonts)
+   ========================================================= */
+
+@font-face {
+  font-family: "Upwind Sans";
+  src: url("fonts/Upwind_Sans_Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Upwind Sans";
+  src: url("fonts/Upwind_Sans_Medium.otf") format("opentype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Upwind Sans";
+  src: url("fonts/Upwind_Sans_Bold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap");
