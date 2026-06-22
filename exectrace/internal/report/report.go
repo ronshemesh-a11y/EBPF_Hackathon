@@ -104,17 +104,25 @@ func (r *Reporter) Handle(v types.Verdict) bool {
 func (r *Reporter) format(v types.Verdict) string {
 	c := r.pal.forBand(v.Band)
 	ts := v.Ts.Format("15:04:05.000")
-	mitre := ""
-	if len(v.Mitre) > 0 {
-		mitre = r.pal.dim + " [" + strings.Join(v.Mitre, ",") + "]" + r.pal.reset
+	// Tag suffix: [tactic] [mitre,…]
+	var tags []string
+	if v.Tactic != "" {
+		tags = append(tags, v.Tactic)
 	}
-	// time  command  BAND score  reason  [mitre]
-	return fmt.Sprintf("%s%s%s  %s%-50s%s  %s%-4s %0.2f%s  %s%s%s",
+	if len(v.Mitre) > 0 {
+		tags = append(tags, strings.Join(v.Mitre, ","))
+	}
+	suffix := ""
+	for _, t := range tags {
+		suffix += r.pal.dim + " [" + t + "]" + r.pal.reset
+	}
+	// time  command  BAND score  reason  [tactic] [mitre]
+	return fmt.Sprintf("%s%s%s  %-50s  %s%-4s %0.2f%s  %s%s%s",
 		r.pal.dim, ts, r.pal.reset,
-		"", truncate(v.Command, 50), "",
+		truncate(v.Command, 50),
 		c, v.Band, v.Score, r.pal.reset,
 		r.pal.dim, v.Reason, r.pal.reset,
-	) + mitre
+	) + suffix
 }
 
 func truncate(s string, n int) string {
@@ -130,12 +138,16 @@ func truncate(s string, n int) string {
 // Summary returns the current tally (e.g. for eval correlation).
 func (r *Reporter) Snapshot() Summary { return r.summary }
 
-// PrintSummary writes the end-of-run summary line(s).
-func (r *Reporter) PrintSummary(now time.Time) {
+// PrintSummary writes the end-of-run summary to the reporter's writer.
+func (r *Reporter) PrintSummary(now time.Time) { r.PrintSummaryTo(r.w, now) }
+
+// PrintSummaryTo writes the end-of-run summary to w (used to send the summary
+// to stderr when verdicts are going to stdout as NDJSON).
+func (r *Reporter) PrintSummaryTo(w io.Writer, now time.Time) {
 	s := r.summary
 	elapsed := now.Sub(s.Start)
-	fmt.Fprintln(r.w, strings.Repeat("─", 60))
-	fmt.Fprintf(r.w,
+	fmt.Fprintln(w, strings.Repeat("─", 60))
+	fmt.Fprintf(w,
 		"scanned=%d  flagged=%d  LOW=%d  GRAY=%d  HIGH=%d  elapsed=%s\n",
 		s.Scanned, s.Flagged,
 		s.PerBand[types.BandLow], s.PerBand[types.BandGray], s.PerBand[types.BandHigh],

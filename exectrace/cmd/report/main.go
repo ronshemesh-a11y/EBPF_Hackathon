@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -27,6 +28,7 @@ func main() {
 	grayCut := flag.Float64("gray", 0.3, "score cutoff for GRAY band")
 	highCut := flag.Float64("high", 0.7, "score cutoff for HIGH band")
 	noColor := flag.Bool("no-color", false, "disable ANSI colors")
+	jsonOut := flag.Bool("json", false, "emit NDJSON verdicts on stdout instead of formatted lines")
 	flag.Parse()
 
 	color := !*noColor && os.Getenv("NO_COLOR") == "" && isTTY(os.Stdout)
@@ -35,7 +37,14 @@ func main() {
 	scorer := mockp2.New(mockp2.Bands{Gray: *grayCut, High: *highCut})
 
 	start := time.Unix(0, 0).UTC()
-	rep := report.New(os.Stdout, *threshold, color, start)
+	// In --json mode, formatted text would corrupt the stream, so the reporter
+	// writes to nowhere and the summary goes to stderr.
+	repOut := os.Stdout
+	if *jsonOut {
+		repOut = nil
+	}
+	rep := report.New(orDiscard(repOut), *threshold, color, start)
+	enc := json.NewEncoder(os.Stdout)
 
 	sc := bufio.NewScanner(os.Stdin)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
@@ -51,7 +60,12 @@ func main() {
 			continue
 		}
 		v := scorer.Score(e)
-		rep.Handle(v)
+		shown := rep.Handle(v) // records summary; prints text unless discarded
+		if *jsonOut && shown {
+			if err := enc.Encode(v); err != nil {
+				fmt.Fprintf(os.Stderr, "report: encode: %v\n", err)
+			}
+		}
 		if !e.Ts.IsZero() {
 			last = e.Ts
 		}
@@ -59,7 +73,19 @@ func main() {
 	if err := sc.Err(); err != nil {
 		fmt.Fprintf(os.Stderr, "report: read: %v\n", err)
 	}
-	rep.PrintSummary(last)
+	if *jsonOut {
+		rep.PrintSummaryTo(os.Stderr, last)
+	} else {
+		rep.PrintSummary(last)
+	}
+}
+
+// orDiscard returns w, or io.Discard when w is nil.
+func orDiscard(w *os.File) io.Writer {
+	if w == nil {
+		return io.Discard
+	}
+	return w
 }
 
 // isTTY reports whether f is a terminal (best-effort; falls back to false).
