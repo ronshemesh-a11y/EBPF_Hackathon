@@ -1,8 +1,8 @@
 # ExecGuard — P2 Scorer
 
 The **P2** seat: a Go service that consumes the P1 sensor's events on stdin,
-scores each `execve`/`execveat` command with a **local LLM (Phi-3 via Ollama)**,
-and emits banded `Verdict` lines on stdout for P3.
+scores each `execve`/`execveat` command with a **small local LLM
+(`llama3.2:1b` via Ollama)**, and emits banded `Verdict` lines on stdout for P3.
 
 ```
 P1 sensor ──JSONL events──► [ P2 scorer ] ──JSONL verdicts──► P3 reporter
@@ -20,16 +20,22 @@ go build -o scorer .
 ./scorer --mock < sample-events.jsonl
 
 # Step B — real model:
-ollama serve            # if not already running
-ollama pull phi3        # one-time
-./scorer --model phi3 < sample-events.jsonl
+ollama serve              # if not already running
+ollama pull llama3.2:1b   # one-time (~1.3 GB, runs CPU-only in a small VM)
+./scorer < sample-events.jsonl
 
 # Live, end-to-end:
-sudo ../bin/execguard | ./scorer --model phi3 | <p3-reporter>
+sudo ../bin/execguard | ./scorer | <p3-reporter>
 ```
 
-Flags: `--mock`, `--model <name>` (default `phi3`), `--workers <n>` (default 4),
+Flags: `--mock`, `--model <name>` (default `llama3.2:1b`), `--workers <n>`
+(default 1 — one inference at a time, sized for a 4-vCPU CPU-only VM),
 `--cache-size <n>` (default 4096).
+
+`llama3.2:1b` was chosen for speed on a CPU-only VM: ~2.5 s per *distinct*
+command on 4 aarch64 cores, ~1.3 GB on disk, ~2.5–3 GB RAM. Caching means only
+novel commands hit the model. Swap to a larger model (e.g. `phi3`) with
+`--model phi3` when accuracy matters more than latency.
 
 Expected for `--mock < sample-events.jsonl`: 5 verdicts — `ls`=LOW (×2, the
 second `source:"cache"`), `curl|sh`=HIGH, `/tmp` exec=GRAY, `base64`=GRAY — and
@@ -73,8 +79,8 @@ swapping backends never touches `main.go`.
 
 ## Design note — no deterministic floor
 
-This branch is **LLM-only**: Phi-3 scores every command; `MockScorer` is just a
-no-model dev fallback. If Ollama is unreachable, commands surface as
+This branch is **LLM-only**: the model scores every command; `MockScorer` is just
+a no-model dev fallback. If Ollama is unreachable, commands surface as
 `source:"error"` GRAY verdicts (never silent drops). This intentionally does
 **not** satisfy the brief's "the LLM must not be the only detection mechanism" —
 we accept full local-model dependence and surface failures rather than hide them.

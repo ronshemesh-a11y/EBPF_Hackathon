@@ -83,8 +83,8 @@ func (p *pool) resolve(ctx context.Context, ev ExecEvent) (ScoreResult, string) 
 
 func main() {
 	mock := flag.Bool("mock", false, "use the keyword heuristic instead of a model")
-	model := flag.String("model", "phi3", "Ollama model name (ignored with --mock)")
-	workers := flag.Int("workers", 4, "number of concurrent scoring workers")
+	model := flag.String("model", "llama3.2:1b", "Ollama model name (ignored with --mock)")
+	workers := flag.Int("workers", 1, "number of concurrent scoring workers")
 	cacheSize := flag.Int("cache-size", 4096, "max distinct commands to cache")
 	flag.Parse()
 
