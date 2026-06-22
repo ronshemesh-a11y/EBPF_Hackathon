@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
@@ -29,12 +30,11 @@ func main() {
 	}
 	defer objs.Close()
 
-	links := attachAll(&objs)
-	defer func() {
-		for _, l := range links {
-			l.Close()
-		}
-	}()
+	tp, err := link.Tracepoint("syscalls", "sys_enter_execve", objs.HandleExecve, nil)
+	if err != nil {
+		log.Fatalf("attach syscalls/sys_enter_execve: %v", err)
+	}
+	defer tp.Close()
 
 	rd, err := ringbuf.NewReader(objs.Events)
 	if err != nil {
@@ -70,51 +70,12 @@ func main() {
 		}
 
 		dropped := readDropped(objs.Dropped)
-		evt, keep := decodeEvent(&raw, boot, dropped)
-		if !keep {
-			continue
-		}
+		evt := decodeEvent(&raw, boot, dropped)
 
 		if err := enc.Encode(evt); err != nil {
 			log.Printf("json encode: %v", err)
 		}
 	}
-}
-
-// attachAll wires up every tracepoint. Logs a warning and continues on failure.
-func attachAll(objs *bpfObjects) []link.Link {
-	type entry struct {
-		group string
-		name  string
-		prog  *ebpf.Program
-	}
-
-	entries := []entry{
-		{"syscalls", "sys_enter_execve", objs.HandleExecve},
-		{"syscalls", "sys_enter_execveat", objs.HandleExecveat},
-		{"sched", "sched_process_fork", objs.HandleFork},
-		{"sched", "sched_process_exit", objs.HandleExit},
-		{"syscalls", "sys_enter_setuid", objs.HandleSetuid},
-		{"syscalls", "sys_enter_setreuid", objs.HandleSetreuid},
-		{"syscalls", "sys_enter_setresuid", objs.HandleSetresuid},
-		{"syscalls", "sys_enter_memfd_create", objs.HandleMemfd},
-		{"syscalls", "sys_enter_chmod", objs.HandleChmod},
-		{"syscalls", "sys_enter_fchmod", objs.HandleFchmod},
-		{"syscalls", "sys_enter_openat", objs.HandleOpenat},
-		{"syscalls", "sys_enter_init_module", objs.HandleInitModule},
-		{"syscalls", "sys_enter_finit_module", objs.HandleFinitModule},
-	}
-
-	var ls []link.Link
-	for _, e := range entries {
-		l, err := link.Tracepoint(e.group, e.name, e.prog, nil)
-		if err != nil {
-			log.Printf("attach %s/%s: %v (skipped)", e.group, e.name, err)
-			continue
-		}
-		ls = append(ls, l)
-	}
-	return ls
 }
 
 // readDropped sums the per-CPU dropped counter map (key=0) across all CPUs.
@@ -134,4 +95,3 @@ func readDropped(m *ebpf.Map) uint64 {
 	}
 	return total
 }
-

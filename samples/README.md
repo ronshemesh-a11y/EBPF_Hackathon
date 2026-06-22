@@ -3,6 +3,9 @@
 The eBPF collector (`bin/execguard`) emits **line-delimited JSON** (JSONL) to
 stdout — one event object per line. Your consumer reads this from stdin.
 
+The collector hooks a single tracepoint: **`execve`**. Every line is an
+`execve` event.
+
 ## Integration
 
 Live:
@@ -19,31 +22,29 @@ cat samples/sample-events.jsonl | your_consumer
 
 ## Contract
 
-- One JSON object per line, UTF-8.
-- Every line has the common envelope: `schema_version, event_type, timestamp,
-  ktime_ns, pid, tid, uid, gid, comm, ppid, parent_comm, cgroup_id,
-  dropped_so_far`.
-- `event_type` is one of: `execve`, `fork`, `exit`, `setuid`, `memfd_create`,
-  `chmod`, `openat`, `init_module`.
-- Per-type fields are only present when relevant (absent/omitted otherwise).
-  Pointer-like fields (`cwd`, `ld_preload`, `ld_library_path`, `old_uid`,
-  `new_uid`, `child_pid`) may be `null` or absent.
-- `dropped_so_far` is a running count of ring-buffer drops — if it climbs,
-  the consumer is too slow / volume too high (should stay 0 in normal use).
+One JSON object per line, UTF-8. Fields:
 
-## Per-type fields
+| Field | Type | Notes |
+|-------|------|-------|
+| `schema_version` | int | currently `1` |
+| `event_type` | string | always `"execve"` |
+| `timestamp` | string | RFC3339 wall-clock |
+| `ktime_ns` | uint64 | kernel monotonic ns since boot |
+| `pid` / `tid` | uint32 | process / thread id |
+| `uid` / `gid` | uint32 | caller's user / group id |
+| `comm` | string | calling process name (e.g. `bash` execing `cat`) |
+| `dropped_so_far` | uint64 | running ring-buffer drop count (should stay 0) |
+| `executable` | string | resolved binary path (execve `filename` arg) |
+| `argv` | []string | argument vector, up to 20 args × 128 bytes each |
+| `argv_truncated` | bool | true if more than 20 args were passed |
+| `arg_clipped` | bool | true if any single arg exceeded 128 bytes |
+| `ld_preload` | string \| null | `LD_PRELOAD` value from envp, null if unset |
+| `ld_library_path` | string \| null | `LD_LIBRARY_PATH` value from envp, null if unset |
 
-| event_type     | extra fields |
-|----------------|--------------|
-| `execve`       | `executable, argv[], argv_truncated, arg_clipped, cwd, ld_preload, ld_library_path, is_execveat` |
-| `fork`         | `child_pid` |
-| `exit`         | (envelope only; `pid` is the exiting process) |
-| `setuid`       | `syscall` (setuid/setreuid/setresuid), `old_uid`, `new_uid` |
-| `memfd_create` | `name`, `flags` |
-| `chmod`        | `syscall` (chmod/fchmod), `filepath`, `mode`, `mode_octal` |
-| `openat`       | `filepath`, `open_flags`, `flags_decoded[]` |
-| `init_module`  | `syscall` (init_module/finit_module), `name` (finit only), `flags` |
+`omitempty` applies: false bools and empty/null optional fields may be absent.
 
-In-kernel filtering already applies: `openat` only surfaces sensitive paths,
-`setuid` only root targets, `chmod` only +x in temp dirs. The consumer sees a
-pre-filtered, security-relevant stream — not every syscall.
+## Example
+
+```json
+{"schema_version":1,"event_type":"execve","timestamp":"2026-06-22T11:34:53.075564435Z","ktime_ns":9706062595035,"pid":12219,"tid":12219,"uid":0,"gid":0,"comm":"bash","dropped_so_far":0,"executable":"/usr/bin/cat","argv":["cat","/etc/shadow"]}
+```
