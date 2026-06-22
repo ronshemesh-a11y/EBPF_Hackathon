@@ -9,10 +9,21 @@ import (
 // decodeEvent converts a raw bpfEvent (bpf2go-generated) to the minimal
 // command/argv model.Event.
 func decodeEvent(raw *bpfEvent) model.Event {
+	executable := sanitize(int8SliceToStr(raw.Filename[:]))
+	argv := decodeArgv(raw.ArgvBuf[:], raw.ArgsCount)
+
+	// At sys_enter_execve the argv strings live in userspace and a page is
+	// occasionally not resident, so the read for an arg can come back empty.
+	// argv[0] (the command name) is the costly one to lose — fall back to the
+	// resolved executable path, which reads reliably from the syscall arg.
+	if len(argv) > 0 && argv[0] == "" && executable != "" {
+		argv[0] = executable
+	}
+
 	return model.Event{
 		EventType:  "execve",
-		Executable: sanitize(int8SliceToStr(raw.Filename[:])),
-		Argv:       decodeArgv(raw.ArgvBuf[:], raw.ArgsCount),
+		Executable: executable,
+		Argv:       argv,
 	}
 }
 
