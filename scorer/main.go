@@ -15,13 +15,6 @@ import (
 	"syscall"
 )
 
-// job is one exec event queued for scoring, tagged with its input order so the
-// writer can emit verdicts in the same order they arrived.
-type job struct {
-	seq int
-	ev  ExecEvent
-}
-
 // seqVerdict carries a finished verdict back to the ordered writer.
 type seqVerdict struct {
 	seq     int
@@ -87,6 +80,7 @@ func main() {
 	model := flag.String("model", "llama3.2:1b", "Ollama model name (ignored with --mock)")
 	workers := flag.Int("workers", 1, "number of concurrent scoring workers")
 	cacheSize := flag.Int("cache-size", 4096, "max distinct commands to cache")
+	bufSize := flag.Int("buffer", 100000, "max pending commands buffered before the LLM (drop-oldest when full)")
 	flag.Parse()
 
 	var scorer Scorer
@@ -95,7 +89,7 @@ func main() {
 	} else {
 		scorer = NewOllamaClient(*model)
 	}
-	fmt.Fprintf(os.Stderr, "scorer: backend=%s workers=%d cache=%d\n", scorer.Name(), *workers, *cacheSize)
+	fmt.Fprintf(os.Stderr, "scorer: backend=%s workers=%d cache=%d buffer=%d\n", scorer.Name(), *workers, *cacheSize, *bufSize)
 
 	// Cancel in-flight model calls cleanly on Ctrl-C / SIGTERM.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -107,18 +101,24 @@ func main() {
 		inflight: make(map[string]chan struct{}),
 	}
 
-	jobs := make(chan job, 1024)
+	q := newQueue(*bufSize)
 	results := make(chan seqVerdict, 1024)
 
-	// Worker pool: each worker scores jobs and forwards tagged verdicts.
+	// Worker pool: each worker pops events (FIFO, seq assigned at pop), scores
+	// them, and forwards tagged verdicts. Pop blocks while the queue is empty and
+	// returns ok=false once it's closed and drained.
 	var wg sync.WaitGroup
 	for i := 0; i < *workers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for j := range jobs {
-				r, src := p.resolve(ctx, j.ev)
-				results <- seqVerdict{seq: j.seq, verdict: newVerdict(j.ev, r, src)}
+			for {
+				seq, ev, ok := q.Pop()
+				if !ok {
+					return
+				}
+				r, src := p.resolve(ctx, ev)
+				results <- seqVerdict{seq: seq, verdict: newVerdict(ev, r, src)}
 			}
 		}()
 	}
@@ -145,11 +145,12 @@ func main() {
 		close(done)
 	}()
 
-	// Read loop: decode the envelope, route execs to the pool, skip the rest.
+	// Read loop: decode the envelope, route execs into the buffer, skip the rest.
+	// Push never blocks, so stdin is drained at full speed and the kernel ring
+	// buffer upstream is never pressured.
 	var read, nonExec, emptyCmd int64
 	sc := bufio.NewScanner(os.Stdin)
 	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024) // argv lines can be long
-	seq := 0
 	for sc.Scan() {
 		line := sc.Bytes()
 		if len(bytes.TrimSpace(line)) == 0 {
@@ -181,8 +182,7 @@ func main() {
 			continue
 		}
 
-		jobs <- job{seq: seq, ev: ev}
-		seq++
+		q.Push(ev)
 
 		if ctx.Err() != nil {
 			break // shutting down
@@ -192,11 +192,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "stdin read error: %v\n", err)
 	}
 
-	close(jobs)
+	q.Close()
 	wg.Wait()
 	close(results)
 	<-done
 
-	fmt.Fprintf(os.Stderr, "read=%d exec_scored=%d cache_hits=%d non_exec_skipped=%d empty_cmd_skipped=%d\n",
-		read, atomic.LoadInt64(&p.scored), atomic.LoadInt64(&p.hits), nonExec, emptyCmd)
+	fmt.Fprintf(os.Stderr, "read=%d exec_scored=%d cache_hits=%d non_exec_skipped=%d empty_cmd_skipped=%d buffered_dropped=%d\n",
+		read, atomic.LoadInt64(&p.scored), atomic.LoadInt64(&p.hits), nonExec, emptyCmd, q.Dropped())
 }
