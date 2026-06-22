@@ -5,9 +5,11 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"flag"
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/cilium/ebpf/link"
@@ -18,6 +20,16 @@ import (
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -type event bpf ../../bpf/execguard.bpf.c -- -I../../bpf/headers -O2 -g -Wall
 
 func main() {
+	// -exclude drops execve events whose resolved executable path contains any
+	// of these comma-separated substrings. Default skips the scoring backend
+	// itself (Ollama / llama-server) so the AI doesn't score its own inference
+	// process — a pure feedback-noise loop. Pass -exclude='' to emit everything,
+	// or add desktop/system noise (e.g. -exclude='ollama,gjs,gnome-shell').
+	excludeFlag := flag.String("exclude", "ollama,llama-server",
+		"comma-separated substrings; skip execs whose executable path matches any")
+	flag.Parse()
+	excludes := parseExcludes(*excludeFlag)
+
 	if err := rlimit.RemoveMemlock(); err != nil {
 		log.Fatalf("remove memlock rlimit: %v", err)
 	}
@@ -66,8 +78,33 @@ func main() {
 			continue
 		}
 
-		if err := enc.Encode(decodeEvent(&raw)); err != nil {
+		evt := decodeEvent(&raw)
+		if excluded(evt.Executable, excludes) {
+			continue
+		}
+		if err := enc.Encode(evt); err != nil {
 			log.Printf("json encode: %v", err)
 		}
 	}
+}
+
+// parseExcludes splits the -exclude flag into a list of non-empty substrings.
+func parseExcludes(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// excluded reports whether the executable path contains any exclude substring.
+func excluded(executable string, excludes []string) bool {
+	for _, e := range excludes {
+		if strings.Contains(executable, e) {
+			return true
+		}
+	}
+	return false
 }

