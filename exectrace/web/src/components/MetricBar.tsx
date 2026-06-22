@@ -58,13 +58,13 @@ export function MetricBar({ m, latencyMs }: { m: Metrics; latencyMs?: number }) 
     <div className="flex items-center gap-12 flex-wrap">
       <Chip
         label="events/sec"
-        value={m.eventsPerSec.toFixed(1)}
+        value={(m.eventsPerSec ?? 0).toFixed(1)}
         icon={<Activity size={15} />}
         accent="var(--action-primary)"
       />
       <Chip
         label="flagged"
-        value={`${m.flaggedPct.toFixed(0)}%`}
+        value={`${(m.flaggedPct ?? 0).toFixed(0)}%`}
         icon={<ShieldAlert size={15} />}
         accent={m.flaggedPct > 0 ? "var(--severity-medium)" : undefined}
       />

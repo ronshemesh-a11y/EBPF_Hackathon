@@ -32,7 +32,7 @@ export function DetailPanel({ selected }: { selected: FeedItem | null }) {
               className="ml-auto font-mono"
               style={{ color: severity(selected.band).fg, fontSize: "16px", fontWeight: 700 }}
             >
-              {Math.round(selected.risk_score * 100)}%
+              {Math.round((selected.risk_score ?? 0) * 100)}%
             </span>
           </div>
 

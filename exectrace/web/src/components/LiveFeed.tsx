@@ -57,7 +57,7 @@ export function LiveFeed({
                 className="shrink-0 rounded-4 px-4 font-mono"
                 style={{ color: s.fg, background: s.bg, fontSize: "10px", fontWeight: 500 }}
               >
-                {it.risk_score.toFixed(2)}
+                {(it.risk_score ?? 0).toFixed(2)}
               </span>
             </button>
           );
