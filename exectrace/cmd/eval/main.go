@@ -22,17 +22,32 @@ import (
 	"os"
 	"time"
 
+	"exectrace/internal/analyzer"
 	"exectrace/internal/eval"
 	"exectrace/internal/mockp2"
 	"exectrace/internal/source"
 	"exectrace/internal/types"
 )
 
+// buildScorer selects the scorer backend behind the types.Scorer seam:
+// mockp2 (default, offline), llm (P2 analyzer/Ollama), llm-mock (P2 keyword).
+func buildScorer(name, model string, gray, high float64) types.Scorer {
+	switch name {
+	case "llm":
+		return analyzer.New(model)
+	case "llm-mock":
+		return analyzer.NewMock()
+	default:
+		return mockp2.New(mockp2.Bands{Gray: gray, High: high})
+	}
+}
+
 func main() {
 	file := flag.String("file", "", "labeled CSV corpus to score (process_name,command_line[,label])")
 	truth := flag.String("truth", "", "optional ground-truth file (.txt: one malicious command per line)")
 	out := flag.String("out", "", "persist the run as JSON to this path")
-	scorerName := flag.String("scorer", "mockp2", "label recorded in results for this scorer")
+	scorerName := flag.String("scorer", "mockp2", "scorer + results label: mockp2 | llm (P2 Ollama) | llm-mock")
+	model := flag.String("model", "llama3.2:1b", "Ollama model for --scorer=llm")
 	grayCut := flag.Float64("gray", 0.3, "score cutoff for GRAY band")
 	highCut := flag.Float64("high", 0.7, "score cutoff for HIGH band")
 	flag.Parse()
@@ -67,9 +82,9 @@ func main() {
 		labelOf = func(_ int, cmd string) string { return tset.Label(cmd) }
 	}
 
-	// Seam with P2: held as the interface, so swapping in the real LLM scorer
-	// is this one construction line.
-	var scorer types.Scorer = mockp2.New(mockp2.Bands{Gray: *grayCut, High: *highCut})
+	// Seam with P2: held as the interface. --scorer selects the backend (real
+	// P2 is the analyzer/Ollama); default mockp2 keeps the benchmark offline.
+	scorer := buildScorer(*scorerName, *model, *grayCut, *highCut)
 	var es eval.Scorer
 
 	t0 := time.Now()

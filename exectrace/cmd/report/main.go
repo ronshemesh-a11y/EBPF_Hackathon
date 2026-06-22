@@ -18,11 +18,28 @@ import (
 	"os"
 	"time"
 
+	"exectrace/internal/analyzer"
 	"exectrace/internal/mockp2"
 	"exectrace/internal/report"
 	"exectrace/internal/sink"
 	"exectrace/internal/types"
 )
+
+// buildScorer selects the scorer backend behind the types.Scorer seam.
+//
+//	mockp2    — TEMP regex stand-in (default; offline, deterministic)
+//	llm       — P2's analyzer against a local Ollama model
+//	llm-mock  — P2's analyzer with its keyword backend (no model needed)
+func buildScorer(name, model string, gray, high float64) types.Scorer {
+	switch name {
+	case "llm":
+		return analyzer.New(model)
+	case "llm-mock":
+		return analyzer.NewMock()
+	default:
+		return mockp2.New(mockp2.Bands{Gray: gray, High: high})
+	}
+}
 
 func main() {
 	threshold := flag.String("threshold", "GRAY", "lowest band to display: LOW|GRAY|HIGH (LOW shows everything)")
@@ -32,6 +49,8 @@ func main() {
 	jsonOut := flag.Bool("json", false, "emit NDJSON verdicts on stdout instead of formatted lines")
 	slackWebhook := flag.String("slack-webhook", "", "Slack incoming-webhook URL (else $SLACK_WEBHOOK_URL; unset = no-op)")
 	slackThreshold := flag.String("slack-threshold", "HIGH", "lowest band that notifies Slack: LOW|GRAY|HIGH")
+	scorerName := flag.String("scorer", "mockp2", "scorer: mockp2 | llm (P2 Ollama) | llm-mock (P2 keyword backend)")
+	model := flag.String("model", "llama3.2:1b", "Ollama model for --scorer=llm")
 	flag.Parse()
 
 	color := !*noColor && os.Getenv("NO_COLOR") == "" && isTTY(os.Stdout)
@@ -45,9 +64,9 @@ func main() {
 	notifier := sink.NewSlack(webhook, *slackThreshold, os.Stderr)
 	defer notifier.Close()
 
-	// Seam with P2: held as the interface, so swapping in the real LLM scorer
-	// is this one construction line. (mockp2 is TEMP stand-in.)
-	var scorer types.Scorer = mockp2.New(mockp2.Bands{Gray: *grayCut, High: *highCut})
+	// Seam with P2: held as the interface. --scorer selects the backend; real
+	// P2 is the analyzer (Ollama). Default stays mockp2 so offline demos work.
+	scorer := buildScorer(*scorerName, *model, *grayCut, *highCut)
 
 	start := time.Unix(0, 0).UTC()
 	// In --json mode, formatted text would corrupt the stream, so the reporter
