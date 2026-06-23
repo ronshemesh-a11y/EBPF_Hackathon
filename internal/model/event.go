@@ -13,4 +13,5 @@ type Event struct {
 	PPID       uint32 `json:"ppid"`        // tgid of the parent
 	Comm       string `json:"comm"`        // acting (pre-exec) process name
 	ParentComm string `json:"parent_comm"` // parent process name
+	Tty        string `json:"tty"`         // controlling terminal name ("" if none)
 }

@@ -28,6 +28,7 @@ func decodeEvent(raw *bpfEvent) model.Event {
 		PPID:       raw.Ppid,
 		Comm:       sanitize(int8SliceToStr(raw.Comm[:])),
 		ParentComm: sanitize(int8SliceToStr(raw.Pcomm[:])),
+		Tty:        sanitize(int8SliceToStr(raw.Tty[:])),
 	}
 }
 
