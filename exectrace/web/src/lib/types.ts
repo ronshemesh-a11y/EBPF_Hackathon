@@ -25,3 +25,14 @@ export interface FeedItem extends Verdict {
   _seq: number;
   _live: boolean; // arrived over the websocket (vs loaded from history) → animate
 }
+
+// AggregatedItem groups repeated executions of the same command into one row.
+// The right-drawer live feed shows one row per unique command text plus ×N count.
+export interface AggregatedItem {
+  cmd: string;
+  verdict: string;
+  band: string;
+  count: number;
+  lastSeen: string; // RFC3339 of most recent occurrence
+  item: FeedItem;   // the most recent raw item (for opening detail modal)
+}
