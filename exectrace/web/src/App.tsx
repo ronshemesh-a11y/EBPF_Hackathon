@@ -41,6 +41,21 @@ export default function App() {
           <span className="uw-body-sm" style={{ color: "var(--text-tertiary)" }}>
             SOC console
           </span>
+          {/* BUILD MARKER — temporary, traceable proof the web rebuild deployed. */}
+          <span
+            style={{
+              marginLeft: 8,
+              padding: "2px 8px",
+              borderRadius: 4,
+              background: "#22c55e",
+              color: "#000",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: 0.3,
+            }}
+          >
+            BUILD ✓ provenance
+          </span>
         </div>
         <div className="ml-auto">
           <MetricBar m={metrics} />
