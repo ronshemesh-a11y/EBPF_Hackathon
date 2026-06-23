@@ -44,6 +44,19 @@ int handle_execve(struct trace_event_raw_sys_enter *ctx)
 	struct task_struct *t = (struct task_struct *)bpf_get_current_task();
 	BPF_CORE_READ_INTO(&e->tty, t, signal, tty, name);
 
+	/*
+	 * Provenance: own pid + acting comm, then parent pid + comm via CO-RE.
+	 * At execve-enter the acting comm is the pre-exec (spawner) name — see
+	 * execguard.h. Used userspace to attribute and drop IDE/editor noise.
+	 */
+	e->pid  = (__u32)(bpf_get_current_pid_tgid() >> 32);
+	e->ppid = 0;
+	e->comm[0]  = '\0';
+	e->pcomm[0] = '\0';
+	bpf_get_current_comm(&e->comm, sizeof(e->comm));
+	BPF_CORE_READ_INTO(&e->ppid,  t, real_parent, tgid);
+	BPF_CORE_READ_STR_INTO(&e->pcomm, t, real_parent, comm);
+
 	/* argv walk — read each pointer, then the string it points to. */
 	#pragma unroll
 	for (int i = 0; i < MAX_ARGS; i++) {
