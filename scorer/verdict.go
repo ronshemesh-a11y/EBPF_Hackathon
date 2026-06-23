@@ -4,11 +4,11 @@ import "time"
 
 // Bands key on risk_score (probability the command is malicious).
 const (
-	HighThreshold = 0.75 // >= HIGH
+	HighThreshold = 0.70 // >= HIGH
 	GrayThreshold = 0.35 // >= GRAY, else LOW
 )
 
-// bandFor maps a risk score to its band: HIGH ≥ 0.75, GRAY 0.35–0.75, LOW < 0.35.
+// bandFor maps a risk score to its band: HIGH ≥ 0.70, GRAY 0.35–0.70, LOW < 0.35.
 func bandFor(score float64) string {
 	switch {
 	case score >= HighThreshold:

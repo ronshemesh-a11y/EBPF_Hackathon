@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { FeedItem } from "../lib/types";
-import { severity, severityRank } from "../lib/severity";
+import { severity, severityRank, scoreLabel } from "../lib/severity";
 import { SeverityBadge, MitreTags } from "./Badge";
 import { Panel, Empty } from "./LiveFeed";
 
@@ -52,7 +52,7 @@ export function AlertList({
                   className="ml-auto font-mono"
                   style={{ color: s.fg, fontSize: "12px", fontWeight: 500 }}
                 >
-                  {Math.round(it.risk_score * 100)}%
+                  {scoreLabel(it.risk_score)} · {Math.round(it.risk_score * 100)}%
                 </span>
               </div>
               <div

@@ -27,7 +27,7 @@ type Bands struct {
 }
 
 // DefaultBands matches the brief's example cutoffs.
-func DefaultBands() Bands { return Bands{Gray: 0.3, High: 0.7} }
+func DefaultBands() Bands { return Bands{Gray: 0.35, High: 0.70} }
 
 func (b Bands) classify(score float64) string {
 	switch {

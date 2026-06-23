@@ -1,6 +1,6 @@
 import { Info } from "lucide-react";
 import type { FeedItem } from "../lib/types";
-import { severity } from "../lib/severity";
+import { severity, scoreLabel } from "../lib/severity";
 import { SeverityBadge, MitreTags } from "./Badge";
 import { Panel, Empty } from "./LiveFeed";
 import { fmtTime } from "../lib/format";
@@ -32,7 +32,7 @@ export function DetailPanel({ selected }: { selected: FeedItem | null }) {
               className="ml-auto font-mono"
               style={{ color: severity(selected.band).fg, fontSize: "16px", fontWeight: 700 }}
             >
-              {Math.round(selected.risk_score * 100)}%
+              {scoreLabel(selected.risk_score)} · {Math.round(selected.risk_score * 100)}%
             </span>
           </div>
 

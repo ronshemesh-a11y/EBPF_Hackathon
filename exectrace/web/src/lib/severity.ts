@@ -32,3 +32,11 @@ export function severity(band: string | undefined): SeverityStyle {
 export function severityRank(band: string | undefined): number {
   return severity(band).rank;
 }
+
+// Named risk band from a 0–1 score. Cutoffs mirror the backend (0.35 / 0.70)
+// so the label always agrees with the band color and alert filtering.
+export function scoreLabel(score: number): string {
+  if (score >= 0.7) return "Malicious";
+  if (score >= 0.35) return "Suspicious";
+  return "Benign";
+}
