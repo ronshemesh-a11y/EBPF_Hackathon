@@ -24,6 +24,10 @@ func decodeEvent(raw *bpfEvent) model.Event {
 		EventType:  "execve",
 		Executable: executable,
 		Argv:       argv,
+		PID:        raw.Pid,
+		PPID:       raw.Ppid,
+		Comm:       sanitize(int8SliceToStr(raw.Comm[:])),
+		ParentComm: sanitize(int8SliceToStr(raw.Pcomm[:])),
 	}
 }
 
