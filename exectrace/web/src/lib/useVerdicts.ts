@@ -50,6 +50,13 @@ export function useVerdicts(): VerdictsState {
     const record = (v: Verdict, isLive: boolean) => {
       if (isLive) arrivals.current.push(Date.now());
       setItems((prev) => {
+        const head = prev[0];
+        if (head && head.executable === v.executable && head.command === v.command) {
+          // Same command as the newest row → bump its count (and refresh ts)
+          // instead of flooding the feed with identical rows.
+          const bumped = { ...head, _count: (head._count ?? 1) + 1, ts: v.ts };
+          return [bumped, ...prev.slice(1)];
+        }
         const next = [tag(v), ...prev];
         return next.length > MAX_ITEMS ? next.slice(0, MAX_ITEMS) : next;
       });

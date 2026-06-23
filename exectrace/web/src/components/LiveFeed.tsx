@@ -53,6 +53,14 @@ export function LiveFeed({
               >
                 {it.command}
               </span>
+              {it._count && it._count > 1 && (
+                <span
+                  className="shrink-0 font-mono"
+                  style={{ color: "var(--text-tertiary)", fontSize: "11px" }}
+                >
+                  ×{it._count}
+                </span>
+              )}
               <span
                 className="shrink-0 rounded-4 px-4 font-mono"
                 style={{ color: s.fg, background: s.bg, fontSize: "10px", fontWeight: 500 }}
