@@ -99,8 +99,11 @@ func main() {
 	floor := flag.Bool("floor", true, "apply the deterministic rule floor (guarantee known-bad TTPs) on top of the LLM")
 	suppressParents := flag.String("suppress-parents", "code,code-insiders,codium,cursor,node,gitstatusd",
 		"comma-separated process names whose BENIGN execs are dropped (IDE/editor housekeeping noise); empty disables")
+	suppressCmds := flag.String("suppress-cmd-substrings", "diff.autorefreshindex=false,git_optional_locks=0",
+		"comma-separated lowercase substrings; BENIGN execs whose command contains one are dropped (provenance-free IDE git-poll fallback); empty disables")
 	flag.Parse()
 	suppressSet := parseNameSet(*suppressParents)
+	cmdSigs := splitCSVLower(*suppressCmds)
 
 	var scorer Scorer
 	if *mock {
@@ -207,7 +210,7 @@ func main() {
 		// Drop routine IDE/editor housekeeping (VSCode git polling, language
 		// servers) at intake. Risky commands are never suppressed (see
 		// isEditorNoise), so a compromised extension still surfaces.
-		if isEditorNoise(ev, suppressSet) {
+		if isEditorNoise(ev, suppressSet) || isIdeGitPoll(ev, cmdSigs) {
 			suppressed++
 			continue
 		}

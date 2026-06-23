@@ -22,6 +22,31 @@ func isEditorNoise(e ExecEvent, parents map[string]bool) bool {
 	return parents[e.Comm] || parents[e.ParentComm]
 }
 
+// isIdeGitPoll reports whether an exec is a machine-generated IDE git poll,
+// matched by command-line SIGNATURE rather than process provenance. This is the
+// provenance-free fallback: it quiets the feed even before the sensor is rebuilt
+// to populate comm/parent_comm (e.g. VSCode's
+// `git -c diff.autoRefreshIndex=false diff --shortstat HEAD` and
+// `bash -c "GIT_OPTIONAL_LOCKS=0 git …"`). The default signatures are config/env
+// tokens a human never types interactively, so this can't suppress hand-typed
+// commands. Risky commands are never suppressed (looksRisky gate). sigs are
+// lowercase substrings; an empty list disables this path.
+func isIdeGitPoll(e ExecEvent, sigs []string) bool {
+	if len(sigs) == 0 {
+		return false
+	}
+	if looksRisky(e) {
+		return false
+	}
+	cmd := strings.ToLower(e.CommandLine())
+	for _, sig := range sigs {
+		if strings.Contains(cmd, sig) {
+			return true
+		}
+	}
+	return false
+}
+
 // parseNameSet splits a comma-separated flag into a set of process names.
 func parseNameSet(s string) map[string]bool {
 	set := map[string]bool{}
@@ -31,4 +56,16 @@ func parseNameSet(s string) map[string]bool {
 		}
 	}
 	return set
+}
+
+// splitCSVLower splits a comma-separated flag into a slice of lowercase,
+// non-empty, trimmed substrings.
+func splitCSVLower(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(strings.ToLower(p)); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

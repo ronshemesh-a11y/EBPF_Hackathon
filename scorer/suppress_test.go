@@ -35,6 +35,35 @@ func TestIsEditorNoise(t *testing.T) {
 	}
 }
 
+func TestIsIdeGitPoll(t *testing.T) {
+	sigs := []string{"diff.autorefreshindex=false", "git_optional_locks=0"}
+
+	// VSCode's direct git poll → suppressed by signature, no provenance needed.
+	direct := ExecEvent{Executable: "/usr/bin/git",
+		Argv: []string{"git", "-c", "diff.autoRefreshIndex=false", "diff", "--shortstat", "HEAD"}}
+	if !isIdeGitPoll(direct, sigs) {
+		t.Fatal("direct VSCode git poll should be suppressed by signature")
+	}
+
+	// VSCode's bash-wrapped poll → suppressed by the env signature.
+	wrapped := ExecEvent{Executable: "/usr/bin/bash",
+		Argv: []string{"bash", "--norc", "-c", "GIT_OPTIONAL_LOCKS=0 git diff --shortstat HEAD"}}
+	if !isIdeGitPoll(wrapped, sigs) {
+		t.Fatal("bash-wrapped VSCode git poll should be suppressed by signature")
+	}
+
+	// A hand-typed git command → NOT suppressed (no machine signature).
+	human := ExecEvent{Executable: "/usr/bin/git", Argv: []string{"git", "diff", "--shortstat", "HEAD"}}
+	if isIdeGitPoll(human, sigs) {
+		t.Fatal("hand-typed git diff must not be suppressed")
+	}
+
+	// Empty signature list disables the path.
+	if isIdeGitPoll(direct, nil) {
+		t.Fatal("empty signature list must disable suppression")
+	}
+}
+
 func TestParseNameSet(t *testing.T) {
 	got := parseNameSet("code, node ,,gitstatusd")
 	want := []string{"code", "node", "gitstatusd"}
