@@ -47,6 +47,13 @@ type Verdict struct {
 	RiskIndicators []string `json:"risk_indicators"`
 	Source         string   `json:"source"`               // llm | cache | error | prefilter
 	LatencyMs      int64    `json:"latency_ms,omitempty"` // time spent resolving (LLM call); 0 for cache/prefilter
+	// Provenance from the sensor (task_struct). Carried onto the verdict so the
+	// console can attribute an exec to who spawned it. omitempty so minimal/
+	// replayed events that carry no identity still serialize cleanly.
+	PID        uint32 `json:"pid,omitempty"`
+	PPID       uint32 `json:"ppid,omitempty"`
+	Comm       string `json:"comm,omitempty"`
+	ParentComm string `json:"parent_comm,omitempty"`
 }
 
 // newVerdict assembles an output line from an event, a score result, and the
@@ -74,6 +81,10 @@ func newVerdict(e ExecEvent, r ScoreResult, source string, latencyMs int64) Verd
 		RiskIndicators: indicators,
 		Source:         source,
 		LatencyMs:      latencyMs,
+		PID:            e.PID,
+		PPID:           e.PPID,
+		Comm:           e.Comm,
+		ParentComm:     e.ParentComm,
 	}
 }
 
