@@ -94,7 +94,7 @@ func main() {
 		if (*ttyOnly || *ttyFilter != "") && tty == "" {
 			continue
 		}
-		if *ttyFilter != "" && !strings.Contains(tty, *ttyFilter) {
+		if *ttyFilter != "" && !ttyMatch(tty, *ttyFilter) {
 			continue
 		}
 		if err := enc.Encode(evt); err != nil {
@@ -112,6 +112,17 @@ func parseExcludes(s string) []string {
 		}
 	}
 	return out
+}
+
+// ttyMatch reports whether a controlling-terminal name matches a --tty filter,
+// tolerant of format differences: it strips a leading "/dev/" and removes
+// slashes before a substring test, so --tty=pts/2, --tty=pts2, and
+// --tty=/dev/pts/2 all match a kernel tty name of "pts/2" or "pts2".
+func ttyMatch(name, filter string) bool {
+	norm := func(s string) string {
+		return strings.ReplaceAll(strings.TrimPrefix(s, "/dev/"), "/", "")
+	}
+	return strings.Contains(norm(name), norm(filter))
 }
 
 // excluded reports whether the executable path contains any exclude substring.
