@@ -46,3 +46,15 @@ clean:
 	rm -f $(BINARY)
 	rm -f cmd/execguard/bpf_bpfel.go cmd/execguard/bpf_bpfeb.go
 	rm -f cmd/execguard/bpf_bpfel.o cmd/execguard/bpf_bpfeb.o
+
+# ── End-to-end live pipeline ─────────────────────────────────────────────────
+# sensor → scorer → web console on :8080. The scorer suppresses IDE/editor
+# housekeeping noise (-suppress-parents) and the sensor excludes the inference
+# backend from scoring itself. Build the scorer + server first:
+#     (cd scorer && go build -o scorer .)
+#     (cd exectrace && make ui && make build)
+# Override the model with OLLAMA_MODEL=...; pass --mock to the scorer to run
+# without a model. Open http://localhost:8080 once it's up.
+.PHONY: pipeline
+pipeline: build
+	sudo $(BINARY) | scorer/scorer --model $${OLLAMA_MODEL:-llama3.2:1b} | exectrace/bin/server --addr :8080

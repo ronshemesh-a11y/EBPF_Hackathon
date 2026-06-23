@@ -11,3 +11,4 @@ bpf/headers/vmlinux.h
 *.swp
 .idea/
 .vscode/
+.superpowers/
