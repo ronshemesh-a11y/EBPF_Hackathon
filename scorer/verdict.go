@@ -4,11 +4,11 @@ import "time"
 
 // Bands key on risk_score (probability the command is malicious).
 const (
-	HighThreshold = 0.75 // >= HIGH
+	HighThreshold = 0.70 // >= HIGH
 	GrayThreshold = 0.35 // >= GRAY, else LOW
 )
 
-// bandFor maps a risk score to its band: HIGH ≥ 0.75, GRAY 0.35–0.75, LOW < 0.35.
+// bandFor maps a risk score to its band: HIGH ≥ 0.70, GRAY 0.35–0.70, LOW < 0.35.
 func bandFor(score float64) string {
 	switch {
 	case score >= HighThreshold:
@@ -45,14 +45,15 @@ type Verdict struct {
 	Reason         string   `json:"reason"`
 	Mitre          []string `json:"mitre"`
 	RiskIndicators []string `json:"risk_indicators"`
-	Source         string   `json:"source"` // llm | cache | error
+	Source         string   `json:"source"`               // llm | cache | error | prefilter
+	LatencyMs      int64    `json:"latency_ms,omitempty"` // time spent resolving (LLM call); 0 for cache/prefilter
 }
 
 // newVerdict assembles an output line from an event, a score result, and the
 // source that produced it. The band is derived from the score so it always
 // agrees with risk_score. Nil slices are normalized to [] for clean JSON.
 // ts is stamped at scoring time since the minimal P1 stream carries none.
-func newVerdict(e ExecEvent, r ScoreResult, source string) Verdict {
+func newVerdict(e ExecEvent, r ScoreResult, source string, latencyMs int64) Verdict {
 	mitre := r.Mitre
 	if mitre == nil {
 		mitre = []string{}
@@ -72,6 +73,7 @@ func newVerdict(e ExecEvent, r ScoreResult, source string) Verdict {
 		Mitre:          mitre,
 		RiskIndicators: indicators,
 		Source:         source,
+		LatencyMs:      latencyMs,
 	}
 }
 

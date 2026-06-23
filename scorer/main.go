@@ -13,6 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+	"time"
 )
 
 // seqVerdict carries a finished verdict back to the ordered writer.
@@ -32,6 +33,7 @@ type pool struct {
 	scored      int64 // distinct commands sent to the scorer (LLM)
 	hits        int64 // duplicates served from cache
 	prefiltered int64 // resolved by the cheap gate, never touched the LLM
+	floor       bool  // apply the deterministic rule floor on top of the LLM
 }
 
 // resolve returns the score for an event and the source that produced it.
@@ -69,11 +71,15 @@ func (p *pool) resolve(ctx context.Context, ev ExecEvent) (ScoreResult, string) 
 		if err != nil {
 			r = errorResult(err)
 			source = "error"
+		} else if p.floor {
+			// Guardrail: the LLM already ran (real latency), but a high-confidence
+			// known-bad pattern raises the score so headline TTPs can't be missed.
+			r = applyFloor(ev.CommandLine(), r)
 		}
 
 		p.mu.Lock()
 		if source == "llm" {
-			p.cache.Put(key, r) // only successful scores are cached
+			p.cache.Put(key, r) // only successful scores are cached (floored result)
 		}
 		delete(p.inflight, key)
 		p.mu.Unlock()
@@ -90,6 +96,7 @@ func main() {
 	workers := flag.Int("workers", 1, "number of concurrent scoring workers")
 	cacheSize := flag.Int("cache-size", 16384, "max distinct commands to cache")
 	bufSize := flag.Int("buffer", 100000, "max pending commands buffered before the LLM (drop-oldest when full)")
+	floor := flag.Bool("floor", true, "apply the deterministic rule floor (guarantee known-bad TTPs) on top of the LLM")
 	flag.Parse()
 
 	var scorer Scorer
@@ -98,7 +105,7 @@ func main() {
 	} else {
 		scorer = NewOllamaClient(*model)
 	}
-	fmt.Fprintf(os.Stderr, "scorer: backend=%s workers=%d cache=%d buffer=%d\n", scorer.Name(), *workers, *cacheSize, *bufSize)
+	fmt.Fprintf(os.Stderr, "scorer: backend=%s workers=%d cache=%d buffer=%d floor=%v\n", scorer.Name(), *workers, *cacheSize, *bufSize, *floor)
 
 	// Cancel in-flight model calls cleanly on Ctrl-C / SIGTERM.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -108,6 +115,7 @@ func main() {
 		scorer:   scorer,
 		cache:    NewCache(*cacheSize),
 		inflight: make(map[string]chan struct{}),
+		floor:    *floor,
 	}
 
 	q := newQueue(*bufSize)
@@ -126,8 +134,10 @@ func main() {
 				if !ok {
 					return
 				}
+				start := time.Now()
 				r, src := p.resolve(ctx, ev)
-				results <- seqVerdict{seq: seq, verdict: newVerdict(ev, r, src)}
+				lat := time.Since(start).Milliseconds()
+				results <- seqVerdict{seq: seq, verdict: newVerdict(ev, r, src, lat)}
 			}
 		}()
 	}
