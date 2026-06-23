@@ -35,6 +35,15 @@ int handle_execve(struct trace_event_raw_sys_enter *ctx)
 	e->args_count = 0;
 	bpf_probe_read_user_str(e->filename, sizeof(e->filename), filename);
 
+	/*
+	 * Controlling terminal name, or "" when the process has none. Interactive
+	 * shell commands have a tty; daemons, cron, and IDE-spawned processes
+	 * don't — so userspace can filter to interactive execs (--tty-only).
+	 */
+	e->tty[0] = '\0';
+	struct task_struct *t = (struct task_struct *)bpf_get_current_task();
+	BPF_CORE_READ_INTO(&e->tty, t, signal, tty, name);
+
 	/* argv walk — read each pointer, then the string it points to. */
 	#pragma unroll
 	for (int i = 0; i < MAX_ARGS; i++) {

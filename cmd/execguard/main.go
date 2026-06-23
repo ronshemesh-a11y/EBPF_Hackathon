@@ -27,6 +27,8 @@ func main() {
 	// or add desktop/system noise (e.g. -exclude='ollama,gjs,gnome-shell').
 	excludeFlag := flag.String("exclude", "ollama,llama-server",
 		"comma-separated substrings; skip execs whose executable path matches any")
+	ttyOnly := flag.Bool("tty-only", false,
+		"only emit execs that have a controlling terminal (drops daemon/cron/IDE noise; opt-in)")
 	flag.Parse()
 	excludes := parseExcludes(*excludeFlag)
 
@@ -80,6 +82,11 @@ func main() {
 
 		evt := decodeEvent(&raw)
 		if excluded(evt.Executable, excludes) {
+			continue
+		}
+		// --tty-only: drop execs with no controlling terminal (daemons, cron,
+		// IDE-spawned processes) so only interactive-shell activity is emitted.
+		if *ttyOnly && int8SliceToStr(raw.Tty[:]) == "" {
 			continue
 		}
 		if err := enc.Encode(evt); err != nil {
