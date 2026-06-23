@@ -23,12 +23,16 @@ var safeBins = map[string]bool{
 	"free": true, "df": true, "du": true, "uptime": true, "env": true,
 	"which": true, "file": true, "comm": true, "diff": true, "cmp": true,
 	"less": true, "more": true, "column": true, "tput": true, "clear": true,
+	// Version control / editor housekeeping: IDEs (VSCode) poll these on a loop,
+	// flooding the feed. They are benign regardless of args for our purposes, and
+	// routing them to the 1B only makes it hallucinate. Prefilter them to benign.
+	"git": true, "gitstatusd": true,
 }
 
 // sysDirs are the trusted directories a safe binary must live in. This stops a
 // planted binary named after a coreutil (e.g. /home/x/ls) from being allowlisted
 // by basename alone; temp-dir execs are additionally caught by looksRisky.
-var sysDirs = []string{"/usr/bin/", "/bin/", "/usr/sbin/", "/sbin/"}
+var sysDirs = []string{"/usr/bin/", "/bin/", "/usr/sbin/", "/sbin/", "/usr/local/bin/", "/usr/local/sbin/"}
 
 // riskySubstrings are signals that force a command to the LLM even when its
 // executable is allowlisted (e.g. `cat /etc/shadow`, `tee ~/.ssh/authorized_keys`).
