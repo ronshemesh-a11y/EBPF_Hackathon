@@ -97,7 +97,10 @@ func main() {
 	cacheSize := flag.Int("cache-size", 16384, "max distinct commands to cache")
 	bufSize := flag.Int("buffer", 100000, "max pending commands buffered before the LLM (drop-oldest when full)")
 	floor := flag.Bool("floor", true, "apply the deterministic rule floor (guarantee known-bad TTPs) on top of the LLM")
+	suppressParents := flag.String("suppress-parents", "code,code-insiders,codium,cursor,node,gitstatusd",
+		"comma-separated process names whose BENIGN execs are dropped (IDE/editor housekeeping noise); empty disables")
 	flag.Parse()
+	suppressSet := parseNameSet(*suppressParents)
 
 	var scorer Scorer
 	if *mock {
@@ -167,7 +170,7 @@ func main() {
 	// Read loop: decode the envelope, route execs into the buffer, skip the rest.
 	// Push never blocks, so stdin is drained at full speed and the kernel ring
 	// buffer upstream is never pressured.
-	var read, nonExec, emptyCmd int64
+	var read, nonExec, emptyCmd, suppressed int64
 	sc := bufio.NewScanner(os.Stdin)
 	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024) // argv lines can be long
 	for sc.Scan() {
@@ -201,6 +204,14 @@ func main() {
 			continue
 		}
 
+		// Drop routine IDE/editor housekeeping (VSCode git polling, language
+		// servers) at intake. Risky commands are never suppressed (see
+		// isEditorNoise), so a compromised extension still surfaces.
+		if isEditorNoise(ev, suppressSet) {
+			suppressed++
+			continue
+		}
+
 		q.Push(ev)
 
 		if ctx.Err() != nil {
@@ -216,6 +227,6 @@ func main() {
 	close(results)
 	<-done
 
-	fmt.Fprintf(os.Stderr, "read=%d exec_scored=%d prefiltered=%d cache_hits=%d non_exec_skipped=%d empty_cmd_skipped=%d buffered_dropped=%d\n",
-		read, atomic.LoadInt64(&p.scored), atomic.LoadInt64(&p.prefiltered), atomic.LoadInt64(&p.hits), nonExec, emptyCmd, q.Dropped())
+	fmt.Fprintf(os.Stderr, "read=%d exec_scored=%d prefiltered=%d cache_hits=%d non_exec_skipped=%d empty_cmd_skipped=%d editor_noise_suppressed=%d buffered_dropped=%d\n",
+		read, atomic.LoadInt64(&p.scored), atomic.LoadInt64(&p.prefiltered), atomic.LoadInt64(&p.hits), nonExec, emptyCmd, suppressed, q.Dropped())
 }
