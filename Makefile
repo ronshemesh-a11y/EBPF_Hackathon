@@ -57,4 +57,10 @@ clean:
 # without a model. Open http://localhost:8080 once it's up.
 .PHONY: pipeline
 pipeline: build
-	sudo $(BINARY) | scorer/scorer --model $${OLLAMA_MODEL:-llama3.2:1b} | exectrace/bin/server --addr :8080
+	sudo $(BINARY) --tty-only | scorer/scorer --model $${OLLAMA_MODEL:-llama3.2:1b} | exectrace/bin/server --addr :8080
+
+# Same, but ONLY the commands typed in one shell. Find its tty with `tty` in that
+# shell (e.g. /dev/pts/1), then: make pipeline-session TTY=pts/1
+.PHONY: pipeline-session
+pipeline-session: build
+	sudo $(BINARY) --tty=$(TTY) | scorer/scorer --model $${OLLAMA_MODEL:-llama3.2:1b} | exectrace/bin/server --addr :8080

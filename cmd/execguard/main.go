@@ -29,6 +29,8 @@ func main() {
 		"comma-separated substrings; skip execs whose executable path matches any")
 	ttyOnly := flag.Bool("tty-only", false,
 		"only emit execs that have a controlling terminal (drops daemon/cron/IDE noise; opt-in)")
+	ttyFilter := flag.String("tty", "",
+		"only emit execs whose controlling terminal name contains this substring (e.g. 'pts/1' for just your shell); implies --tty-only")
 	flag.Parse()
 	excludes := parseExcludes(*excludeFlag)
 
@@ -84,9 +86,15 @@ func main() {
 		if excluded(evt.Executable, excludes) {
 			continue
 		}
-		// --tty-only: drop execs with no controlling terminal (daemons, cron,
-		// IDE-spawned processes) so only interactive-shell activity is emitted.
-		if *ttyOnly && int8SliceToStr(raw.Tty[:]) == "" {
+		// Terminal filtering. --tty-only drops execs with no controlling terminal
+		// (daemons, cron, IDE/desktop-spawned) so only interactive-shell activity
+		// is emitted. --tty=<substr> narrows further to a single session (e.g.
+		// "pts/1"), giving exactly the commands typed in that shell.
+		tty := int8SliceToStr(raw.Tty[:])
+		if (*ttyOnly || *ttyFilter != "") && tty == "" {
+			continue
+		}
+		if *ttyFilter != "" && !strings.Contains(tty, *ttyFilter) {
 			continue
 		}
 		if err := enc.Encode(evt); err != nil {
