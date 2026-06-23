@@ -89,6 +89,8 @@ export function DetailPanel({ selected }: { selected: FeedItem | null }) {
           <Field label="Metadata">
             <div className="grid" style={{ gridTemplateColumns: "auto 1fr", gap: "4px 12px", fontSize: "12px" }}>
               <Meta k="executable" v={selected.executable || "—"} />
+              {selected.comm && <Meta k="process" v={selected.comm} />}
+              {selected.parent_comm && <Meta k="parent" v={selected.parent_comm} />}
               <Meta k="source" v={selected.source || "—"} />
               <Meta k="time" v={fmtTime(selected.ts)} />
             </div>

@@ -33,8 +33,9 @@ type Event struct {
 // Verdict is the scorer's judgement of a single Event. This struct is the
 // contract with P2 (the real scorer/LLM stage) and its JSON tags are
 // byte-identical to scorer/verdict.go's Verdict, so `scorer | report --input
-// verdicts` round-trips. Per-process identity (pid/comm/…) is intentionally
-// absent: the minimal P1 stream doesn't carry it, so it would always be blank.
+// verdicts` round-trips. Per-process identity (pid/ppid/comm/parent_comm) is
+// now carried (the sensor reads it from task_struct); it is omitempty so minimal
+// P1 / replayed events that omit it still round-trip.
 //
 // Ts is time.Time here; the scorer emits ts as an RFC3339 string, which
 // unmarshals into time.Time cleanly.
@@ -49,6 +50,13 @@ type Verdict struct {
 	RiskIndicators []string  `json:"risk_indicators"`
 	Source         string    `json:"source"` // rule | llm | cache | error
 	Ts             time.Time `json:"ts"`
+	// Provenance from the sensor (task_struct), carried over the live websocket
+	// so the console can attribute an exec to who spawned it. omitempty: minimal
+	// P1 / replayed events that carry no identity still round-trip.
+	Pid        int    `json:"pid,omitempty"`
+	Ppid       int    `json:"ppid,omitempty"`
+	Comm       string `json:"comm,omitempty"`
+	ParentComm string `json:"parent_comm,omitempty"`
 }
 
 // Band constants. Cutoffs themselves are config (flags/env), not hardcoded
