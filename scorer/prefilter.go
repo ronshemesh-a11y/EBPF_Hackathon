@@ -34,6 +34,10 @@ var safeBins = map[string]bool{
 // by basename alone; temp-dir execs are additionally caught by looksRisky.
 var sysDirs = []string{"/usr/bin/", "/bin/", "/usr/sbin/", "/sbin/", "/usr/local/bin/", "/usr/local/sbin/"}
 
+// shells are the interpreters that take a `-c "<command>"` script. A bare shell
+// exec is benign; what matters is the inner command, handled by isBenignShellWrapper.
+var shells = map[string]bool{"sh": true, "bash": true, "dash": true, "zsh": true, "ash": true}
+
 // riskySubstrings are signals that force a command to the LLM even when its
 // executable is allowlisted (e.g. `cat /etc/shadow`, `tee ~/.ssh/authorized_keys`).
 var riskySubstrings = []string{
@@ -87,14 +91,70 @@ func prefilter(e ExecEvent) (ScoreResult, bool) {
 	if looksRisky(e) {
 		return ScoreResult{}, false
 	}
-	if isAllowlisted(e.Executable) {
-		return ScoreResult{
-			RiskScore:      0.02,
-			Verdict:        "benign",
-			Reason:         "allowlisted system binary, no risk indicators",
-			Mitre:          []string{},
-			RiskIndicators: []string{},
-		}, true
+	reason := ""
+	switch {
+	case isAllowlisted(e.Executable):
+		reason = "allowlisted system binary, no risk indicators"
+	case isBenignShellWrapper(e):
+		reason = "shell wrapper around an allowlisted command (e.g. IDE git polling)"
+	default:
+		return ScoreResult{}, false
 	}
-	return ScoreResult{}, false
+	return ScoreResult{
+		RiskScore:      0.02,
+		Verdict:        "benign",
+		Reason:         reason,
+		Mitre:          []string{},
+		RiskIndicators: []string{},
+	}, true
+}
+
+// isBenignShellWrapper recognizes `bash -c "<cmd>"` invocations whose inner
+// command is itself an allowlisted program with no shell metacharacters — e.g.
+// the IDE git poll `bash --norc -c "GIT_OPTIONAL_LOCKS=0 git diff --shortstat HEAD"`.
+// Anything with a pipe / redirect / substitution / chaining is NOT treated as
+// benign (it must reach the model), so `bash -c "curl x | sh"` is still scored.
+// looksRisky has already run, so risky substrings (curl, /etc/shadow, …) are out.
+func isBenignShellWrapper(e ExecEvent) bool {
+	if !shells[path.Base(e.Executable)] {
+		return false
+	}
+	inDir := false
+	for _, d := range sysDirs {
+		if strings.HasPrefix(e.Executable, d) {
+			inDir = true
+			break
+		}
+	}
+	if !inDir {
+		return false
+	}
+	// Extract the script that follows -c.
+	payload := ""
+	for i, a := range e.Argv {
+		if a == "-c" && i+1 < len(e.Argv) {
+			payload = e.Argv[i+1]
+			break
+		}
+	}
+	if payload == "" {
+		return false
+	}
+	// Any shell metacharacter means real shell logic — let the model judge it.
+	if strings.ContainsAny(payload, "|&;<>`$(){}\n") {
+		return false
+	}
+	// Skip leading ENV=VAL assignments; the first bare token is the program.
+	prog := ""
+	for _, t := range strings.Fields(payload) {
+		if strings.HasPrefix(t, "-") {
+			return false // a flag before any program — unusual, let the model see it
+		}
+		if i := strings.IndexByte(t, '='); i > 0 && !strings.ContainsAny(t[:i], "/.") {
+			continue // ENV=VAL assignment
+		}
+		prog = t
+		break
+	}
+	return prog != "" && safeBins[path.Base(prog)]
 }
